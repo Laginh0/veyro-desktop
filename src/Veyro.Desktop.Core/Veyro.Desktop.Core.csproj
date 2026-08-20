@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Google.Protobuf" />
+    <PackageReference Include="Grpc.Tools" PrivateAssets="All" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" />
+    <Protobuf Include="../../protocol/veyro_message.proto" GrpcServices="None" Link="Protocol/veyro_message.proto" />
+    <Protobuf Include="../../protocol/veyro_transport.proto" GrpcServices="None" Link="Protocol/veyro_transport.proto" />
+  </ItemGroup>
+</Project>

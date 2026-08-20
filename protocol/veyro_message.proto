@@ -1,0 +1,262 @@
+syntax = "proto3";
+
+package veyro.protocol;
+
+option java_package = "com.veyro.p2p.protocol";
+option java_multiple_files = true;
+option optimize_for = LITE_RUNTIME;
+option csharp_namespace = "Veyro.Protocol";
+
+// Envelope shared by the feature messages introduced after the transfer core.
+message VeyroMessage {
+  string protocol_version = 1;
+
+  oneof payload {
+    BatteryStatus battery_status = 10;
+    FindDeviceRequest find_device_request = 11;
+    NotificationSyncEvent notification_sync_event = 12;
+    MediaControlEvent media_control_event = 13;
+    TelecommunicationEvent telecommunication_event = 14;
+    CustomCommandEvent custom_command_event = 15;
+    UrlShareEvent url_share_event = 16;
+    RemoteInputEvent remote_input_event = 17;
+    ConnectivityStatus connectivity_status = 18;
+    PingEvent ping_event = 19;
+    ContactSyncEvent contact_sync_event = 20;
+    PresentationEvent presentation_event = 21;
+    RemoteFileEvent remote_file_event = 22;
+    ClipboardSyncEvent clipboard_sync_event = 23;
+  }
+}
+
+message BatteryStatus {
+  int32 charge_percentage = 1;
+  bool is_plugged_in = 2;
+  PowerSourceType power_source_type = 3;
+  int64 event_timestamp = 4;
+}
+
+enum PowerSourceType {
+  UNKNOWN_SOURCE = 0;
+  AC_WALL_OUTLET = 1;
+  USB_COMPUTER_PORT = 2;
+  WIRELESS_QI = 3;
+}
+
+message FindDeviceRequest {
+  FindDeviceTrigger trigger_command = 1;
+  float volume_scalar = 2;
+}
+
+enum FindDeviceTrigger {
+  FIND_DEVICE_TRIGGER_UNKNOWN = 0;
+  START_ALARM_SEQUENCE = 1;
+  TERMINATE_ALARM_SEQUENCE = 2;
+}
+
+message NotificationSyncEvent {
+  NotificationSyncAction sync_action = 1;
+  string notification_key = 2;
+  string package_name = 3;
+  string app_name = 4;
+  string title = 5;
+  string text_body = 6;
+  bool is_clearable = 7;
+}
+
+enum NotificationSyncAction {
+  NOTIFICATION_SYNC_ACTION_UNKNOWN = 0;
+  POST_NEW = 1;
+  REMOVE_EXISTING = 2;
+  REMOTE_DISMISS_REQUEST = 3;
+}
+
+message MediaControlEvent {
+  MediaEventCategory event_category = 1;
+  int32 playback_status = 2;
+  string track_name = 3;
+  string artist_name = 4;
+  int64 current_position_ms = 5;
+}
+
+enum MediaEventCategory {
+  MEDIA_EVENT_CATEGORY_UNKNOWN = 0;
+  STATE_REPORT = 1;
+  CMD_PLAY = 2;
+  CMD_PAUSE = 3;
+  CMD_NEXT = 4;
+  CMD_PREV = 5;
+  CMD_VOL_UP = 6;
+  CMD_VOL_DOWN = 7;
+}
+
+message TelecommunicationEvent {
+  TelecommunicationType telecommunication_type = 1;
+  string identity_label = 2;
+  string address_number = 3;
+  string text_payload = 4;
+  int64 epoch_timestamp = 5;
+}
+
+enum TelecommunicationType {
+  TELECOMMUNICATION_TYPE_UNKNOWN = 0;
+  INBOUND_CALL = 1;
+  MISSED_CALL = 2;
+  SMS_RECEIVED_EVENT = 3;
+  SMS_TRANSMIT_ORDER = 4;
+}
+
+message CustomCommandEvent {
+  string command_tracking_id = 1;
+  ExecutionTypeCategory execution_type_category = 2;
+  string encoded_command_string = 3;
+  bool await_output_confirmation = 4;
+  bool execution_succeeded = 5;
+  string execution_output = 6;
+}
+
+enum ExecutionTypeCategory {
+  EXECUTION_TYPE_CATEGORY_UNKNOWN = 0;
+  RAW_SHELL_COMMAND = 1;
+  NATIVE_BROADCAST_INTENT = 2;
+  SYSTEM_URI_ACTION_CALL = 3;
+  EXECUTION_RESULT = 4;
+}
+
+message UrlShareEvent {
+  string hyperlink_target = 1;
+  bool requires_immediate_focus = 2;
+  bool was_accepted = 3;
+  string result_message = 4;
+}
+
+message RemoteInputEvent {
+  RemoteInputCommand input_command = 1;
+  float delta_axis_x = 2;
+  float delta_axis_y = 3;
+  string keyboard_char = 4;
+  int32 multi_pointer_count = 5;
+  StylusAction stylus_action = 6;
+  float normalized_x = 7;
+  float normalized_y = 8;
+  float pressure = 9;
+  float tilt_x = 10;
+  float tilt_y = 11;
+  bool primary_button_pressed = 12;
+  bool is_stylus = 13;
+}
+
+enum RemoteInputCommand {
+  REMOTE_INPUT_COMMAND_UNKNOWN = 0;
+  MOUSE_DELTA = 1;
+  SINGLE_TAP = 2;
+  DOUBLE_TAP = 3;
+  SCROLL_GESTURE = 4;
+  KEYBOARD_INPUT = 5;
+  STYLUS_EVENT = 6;
+}
+
+enum StylusAction {
+  STYLUS_ACTION_UNKNOWN = 0;
+  STYLUS_DOWN = 1;
+  STYLUS_MOVE = 2;
+  STYLUS_UP = 3;
+  STYLUS_CANCEL = 4;
+}
+
+message ConnectivityStatus {
+  NetworkTransport active_transport = 1;
+  bool has_internet = 2;
+  bool is_metered = 3;
+  bool has_signal_strength = 4;
+  int32 signal_strength_dbm = 5;
+  int64 event_timestamp = 6;
+}
+
+enum NetworkTransport {
+  NETWORK_TRANSPORT_UNKNOWN = 0;
+  NETWORK_TRANSPORT_NONE = 1;
+  NETWORK_TRANSPORT_WIFI = 2;
+  NETWORK_TRANSPORT_CELLULAR = 3;
+  NETWORK_TRANSPORT_ETHERNET = 4;
+  NETWORK_TRANSPORT_BLUETOOTH = 5;
+  NETWORK_TRANSPORT_VPN = 6;
+  NETWORK_TRANSPORT_OTHER = 7;
+}
+
+message PingEvent {
+  string request_id = 1;
+  PingAction action = 2;
+}
+
+enum PingAction {
+  PING_ACTION_UNKNOWN = 0;
+  PING_REQUEST = 1;
+  PING_RESPONSE = 2;
+}
+
+message ContactRecord {
+  string display_name = 1;
+  repeated string phone_numbers = 2;
+  repeated string email_addresses = 3;
+}
+
+message ContactSyncEvent {
+  string request_id = 1;
+  ContactSyncAction action = 2;
+  ContactRecord contact = 3;
+  bool accepted = 4;
+  string result_message = 5;
+}
+
+enum ContactSyncAction {
+  CONTACT_SYNC_ACTION_UNKNOWN = 0;
+  CONTACT_OFFER = 1;
+  CONTACT_IMPORT_RESULT = 2;
+}
+
+message PresentationEvent {
+  PresentationAction action = 1;
+  int64 elapsed_millis = 2;
+}
+
+enum PresentationAction {
+  PRESENTATION_ACTION_UNKNOWN = 0;
+  PRESENTATION_START = 1;
+  PRESENTATION_STOP = 2;
+  PRESENTATION_BLACKOUT_ON = 3;
+  PRESENTATION_BLACKOUT_OFF = 4;
+  PRESENTATION_TIMER_SYNC = 5;
+}
+
+message RemoteFileEntry {
+  string document_id = 1;
+  string display_name = 2;
+  string mime_type = 3;
+  int64 size_bytes = 4;
+  bool is_directory = 5;
+}
+
+message RemoteFileEvent {
+  string request_id = 1;
+  RemoteFileAction action = 2;
+  string parent_document_id = 3;
+  string requested_document_id = 4;
+  repeated RemoteFileEntry entries = 5;
+  string result_message = 6;
+}
+
+enum RemoteFileAction {
+  REMOTE_FILE_ACTION_UNKNOWN = 0;
+  LIST_REQUEST = 1;
+  LIST_RESPONSE = 2;
+  DOWNLOAD_REQUEST = 3;
+  DOWNLOAD_REJECTED = 4;
+}
+
+message ClipboardSyncEvent {
+  string event_id = 1;
+  string source_device_id = 2;
+  string text = 3;
+  int64 event_timestamp = 4;
+}

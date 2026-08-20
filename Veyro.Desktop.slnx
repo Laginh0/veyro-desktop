@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Veyro.Desktop/Veyro.Desktop.csproj" />
+    <Project Path="src/Veyro.Desktop.Core/Veyro.Desktop.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Veyro.Desktop.Core.Tests/Veyro.Desktop.Core.Tests.csproj" />
+  </Folder>
+</Solution>

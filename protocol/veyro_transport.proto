@@ -1,0 +1,74 @@
+syntax = "proto3";
+
+package veyro.protocol;
+
+option java_package = "com.veyro.p2p.protocol";
+option java_multiple_files = true;
+option optimize_for = LITE_RUNTIME;
+option csharp_namespace = "Veyro.Protocol";
+
+// Transport metadata is deliberately separate from application messages.
+// encrypted_payload is opaque to a coordinator that is not a destination.
+message TransportEnvelope {
+  uint32 protocol_major = 1;
+  uint32 protocol_minor = 2;
+  string message_id = 3;
+  string origin_device_id = 4;
+  repeated string destination_device_ids = 5;
+  bool authorized_broadcast = 6;
+  TransportPayloadType payload_type = 7;
+  int64 created_at_unix_ms = 8;
+  int64 expires_at_unix_ms = 9;
+  uint32 remaining_hops = 10;
+  uint64 sequence_number = 11;
+  string acknowledges_message_id = 12;
+  bytes origin_authentication = 13;
+  bytes encrypted_payload = 14;
+}
+
+enum TransportPayloadType {
+  PAYLOAD_UNSPECIFIED = 0;
+  APPLICATION_MESSAGE = 1;
+  CONTROL_MESSAGE = 2;
+  ACKNOWLEDGEMENT = 3;
+}
+
+message ProtocolHello {
+  string ephemeral_device_id = 1;
+  repeated ProtocolVersion supported_versions = 2;
+  repeated DeviceCapability capabilities = 3;
+  bool coordinator_eligible = 4;
+}
+
+message ProtocolVersion {
+  uint32 major = 1;
+  uint32 minor = 2;
+}
+
+enum DeviceCapability {
+  CAPABILITY_UNSPECIFIED = 0;
+  BLE_CONTROL = 1;
+  WIFI_DIRECT_DATA = 2;
+  MULTI_DEVICE_ROUTING = 3;
+  FILE_TRANSFER = 4;
+  CLIPBOARD = 5;
+  LINKS = 6;
+  BATTERY_STATUS_CAPABILITY = 7;
+  CONNECTIVITY_STATUS_CAPABILITY = 8;
+  PING = 9;
+}
+
+message ProtocolRejection {
+  ProtocolRejectionReason reason = 1;
+  repeated ProtocolVersion supported_versions = 2;
+}
+
+enum ProtocolRejectionReason {
+  REJECTION_UNSPECIFIED = 0;
+  UNSUPPORTED_VERSION = 1;
+  UNSUPPORTED_MESSAGE = 2;
+  MALFORMED_MESSAGE = 3;
+  UNAUTHORIZED = 4;
+  EXPIRED = 5;
+  HOP_LIMIT_EXCEEDED = 6;
+}
