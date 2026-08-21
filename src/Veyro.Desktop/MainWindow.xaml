@@ -43,7 +43,7 @@
 
                 <StackPanel Grid.Row="2">
                     <TextBlock Text="CANAL DIRETO SEGURO" Foreground="#7F9AB7" FontSize="10" FontWeight="Bold" />
-                    <TextBlock Text="Marco 3" Foreground="#BED0E3" Margin="0,5,0,0" TextWrapping="Wrap" />
+                    <TextBlock Text="Marco 4" Foreground="#BED0E3" Margin="0,5,0,0" TextWrapping="Wrap" />
                 </StackPanel>
             </Grid>
         </Border>
@@ -93,6 +93,8 @@
                             <TextBlock Text="Canal direto de dados" Margin="0,4,0,0" Foreground="{StaticResource VeyroMuted}" />
                             <TextBlock x:Name="WifiDirectStatusText" Margin="0,18,0,0" FontWeight="SemiBold" />
                             <TextBlock x:Name="ActiveSessionsText" Text="0 sessões seguras" Margin="0,6,0,0" FontSize="11" Foreground="{StaticResource VeyroMuted}" />
+                            <TextBlock x:Name="GroupStatusText" Text="Grupo: este computador é o coordenador"
+                                       Margin="0,4,0,0" FontSize="11" TextWrapping="Wrap" Foreground="{StaticResource VeyroMuted}" />
                         </StackPanel>
                     </Border>
                 </Grid>

@@ -4,6 +4,7 @@ using Veyro.Desktop.Core;
 using Veyro.Desktop.Core.Identity;
 using Veyro.Desktop.Bluetooth;
 using Veyro.Desktop.Core.Discovery;
+using Veyro.Desktop.Core.Groups;
 using Veyro.Desktop.Core.Trust;
 using Veyro.Desktop.Pairing;
 using Veyro.Desktop.FastChannel;
@@ -17,6 +18,7 @@ public partial class MainWindow : Window
     private readonly BlePairingCoordinator pairingCoordinator;
     private readonly TrustStore trustStore;
     private readonly FastChannelCoordinator fastChannelCoordinator;
+    private readonly string localDeviceId;
 
     public MainWindow(
         LocalIdentity identity,
@@ -32,6 +34,7 @@ public partial class MainWindow : Window
         this.pairingCoordinator = pairingCoordinator;
         this.trustStore = trustStore;
         this.fastChannelCoordinator = fastChannelCoordinator;
+        localDeviceId = identity.DeviceId;
 
         DeviceNameText.Text = identity.DisplayName;
         DeviceIdText.Text = $"ID {identity.DeviceId}";
@@ -54,8 +57,13 @@ public partial class MainWindow : Window
         pairingCoordinator.StatusChanged += PairingCoordinator_StatusChanged;
         pairingCoordinator.TrustChanged += PairingCoordinator_TrustChanged;
         fastChannelCoordinator.StatusChanged += FastChannelCoordinator_StatusChanged;
+        fastChannelCoordinator.GroupStateChanged += FastChannelCoordinator_GroupStateChanged;
         RefreshNearbyDevices();
         RefreshTrustedDevices();
+        RefreshGroupState(
+            fastChannelCoordinator.GroupEpoch,
+            fastChannelCoordinator.CoordinatorDeviceId,
+            fastChannelCoordinator.GroupMembers);
     }
 
     public void ReportBluetoothFailure(string message)
@@ -118,9 +126,41 @@ public partial class MainWindow : Window
                 : $"{fastChannelCoordinator.ActiveSessionCount} sessões seguras";
         });
 
+    private void FastChannelCoordinator_GroupStateChanged(object? sender, GroupStateChangedEventArgs e) =>
+        _ = Dispatcher.InvokeAsync(() =>
+            RefreshGroupState(e.Epoch, e.CoordinatorDeviceId, e.Members));
+
+    private void RefreshGroupState(
+        ulong epoch,
+        string coordinatorDeviceId,
+        IReadOnlyList<GroupMemberState> members)
+    {
+        var availableMembers = members.Count(member => member.IsAvailable);
+        var coordinator = members.FirstOrDefault(member =>
+            string.Equals(member.DeviceId, coordinatorDeviceId, StringComparison.Ordinal));
+        var coordinatorName = string.Equals(
+            coordinatorDeviceId,
+            localDeviceId,
+            StringComparison.Ordinal)
+            ? "este computador"
+            : coordinator?.DisplayName ?? coordinatorDeviceId[..Math.Min(8, coordinatorDeviceId.Length)];
+        GroupStatusText.Text = $"Grupo: {availableMembers} membro(s) · coordenador: {coordinatorName} · época {epoch}";
+    }
+
     private void PairingCoordinator_PinAvailable(object? sender, PairingPinEventArgs e) =>
         _ = Dispatcher.InvokeAsync(async () =>
         {
+#if DEBUG
+            DiscoveryStatusText.Text = "DEBUG: PIN confirmado automaticamente";
+            try
+            {
+                await pairingCoordinator.ConfirmPinAsync(true);
+            }
+            catch (Exception exception)
+            {
+                ReportBluetoothFailure(exception.Message);
+            }
+#else
             var result = System.Windows.MessageBox.Show(
                 $"Confirme se o mesmo PIN aparece em {e.Verification.RemoteDisplayName}:\n\n{e.Verification.Pin}\n\nO PIN é igual nos dois dispositivos?",
                 "Confirmar pareamento Veyro",
@@ -135,6 +175,7 @@ public partial class MainWindow : Window
             {
                 ReportBluetoothFailure(exception.Message);
             }
+#endif
         });
 
     private async void PairButton_Click(object sender, RoutedEventArgs e)

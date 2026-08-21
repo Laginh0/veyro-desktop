@@ -8,6 +8,7 @@ public sealed class WifiDirectManager : IDisposable
     private readonly WiFiDirectAdvertisementPublisher publisher = new();
     private readonly WiFiDirectConnectionListener connectionListener = new();
     private readonly List<WiFiDirectDevice> connectedDevices = [];
+    private readonly object connectedDevicesSync = new();
     private bool disposed;
 
     public WifiDirectManager()
@@ -52,6 +53,30 @@ public sealed class WifiDirectManager : IDisposable
         return RegisterConnectedDevice(deviceInformationId, deviceInformation.Name, device);
     }
 
+    public void RebuildGroup()
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        if (publisher.Status == WiFiDirectAdvertisementPublisherStatus.Started)
+        {
+            publisher.Stop();
+        }
+
+        lock (connectedDevicesSync)
+        {
+            foreach (var device in connectedDevices)
+            {
+                device.Dispose();
+            }
+
+            connectedDevices.Clear();
+        }
+
+        publisher.Start();
+        StatusChanged?.Invoke(
+            this,
+            new WifiDirectStatusEventArgs("Reconstruindo o grupo como novo coordenador"));
+    }
+
     private async void ConnectionListener_ConnectionRequested(
         WiFiDirectConnectionListener sender,
         WiFiDirectConnectionRequestedEventArgs args)
@@ -83,7 +108,10 @@ public sealed class WifiDirectManager : IDisposable
     {
         var endpoint = device.GetConnectionEndpointPairs().FirstOrDefault()
             ?? throw new InvalidOperationException("O enlace Wi-Fi Direct não forneceu endereços próprios.");
-        connectedDevices.Add(device);
+        lock (connectedDevicesSync)
+        {
+            connectedDevices.Add(device);
+        }
         var connection = new WifiDirectPeerConnection(
             deviceInformationId,
             displayName,
@@ -124,11 +152,14 @@ public sealed class WifiDirectManager : IDisposable
             publisher.Stop();
         }
 
-        foreach (var device in connectedDevices)
+        lock (connectedDevicesSync)
         {
-            device.Dispose();
-        }
+            foreach (var device in connectedDevices)
+            {
+                device.Dispose();
+            }
 
-        connectedDevices.Clear();
+            connectedDevices.Clear();
+        }
     }
 }

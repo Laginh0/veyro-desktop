@@ -84,6 +84,7 @@ public sealed class PairingSessionTests
         var decoded = PairingMessageCodec.ToCore(packet.PairingHello);
 
         Assert.InRange(encoded.Length, 1, PairingMessageCodec.MaximumBleControlPacketSize);
+        Assert.Equal(64, session.LocalHello.Signature.Length);
         Assert.Equal(session.LocalHello.PairingId, decoded.PairingId);
         Assert.Equal(session.LocalHello.DeviceId, decoded.DeviceId);
         Assert.Equal(session.LocalHello.Signature, decoded.Signature);

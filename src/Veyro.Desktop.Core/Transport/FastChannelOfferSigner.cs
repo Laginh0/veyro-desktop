@@ -37,7 +37,10 @@ public static class FastChannelOfferSigner
         using var key = ECDsa.Create();
         key.ImportPkcs8PrivateKey(identityKey.PrivateKeyPkcs8, out _);
         offer.Signature = Google.Protobuf.ByteString.CopyFrom(
-            key.SignData(Encode(offer), HashAlgorithmName.SHA256));
+            key.SignData(
+                Encode(offer),
+                HashAlgorithmName.SHA256,
+                DSASignatureFormat.IeeeP1363FixedFieldConcatenation));
         return offer;
     }
 
@@ -60,7 +63,11 @@ public static class FastChannelOfferSigner
         {
             using var key = ECDsa.Create();
             key.ImportSubjectPublicKeyInfo(Convert.FromBase64String(trustedDevice.IdentityPublicKeyBase64), out _);
-            return key.VerifyData(Encode(offer), offer.Signature.Span, HashAlgorithmName.SHA256);
+            return key.VerifyData(
+                Encode(offer),
+                offer.Signature.Span,
+                HashAlgorithmName.SHA256,
+                DSASignatureFormat.IeeeP1363FixedFieldConcatenation);
         }
         catch (Exception exception) when (exception is CryptographicException or FormatException)
         {

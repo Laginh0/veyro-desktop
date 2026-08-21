@@ -323,3 +323,30 @@ Nenhuma dessas questões muda o requisito central de operação direta e indepen
 ## 14. Prompt sugerido para a nova conversa
 
 > Leia completamente `desktop/docs/VEYRO_DESKTOP_CONTEXT.md`, inspecione o projeto e o protocolo Android atuais e desenvolva o Veyro Desktop começando pelo Marco 1. Preserve o requisito de BLE + Wi-Fi Direct sem dependência de internet, roteador ou rede local. Não publique no GitHub até eu pedir. Conclua cada marco com testes antes de avançar.
+
+## 15. Continuidade após o teste Android 16 de 2026-08-21
+
+- O Android `0.1.10-alpha` migrou a identidade Keystore para o alias `veyro.desktop.identity.p256.v2` e autoriza `DIGEST_SHA256` e `DIGEST_NONE`. O segundo digest é necessário porque o Conscrypt entrega ao Keystore o hash TLS já calculado e solicita a operação ECDSA bruta. A identidade v1 é removida após a criação bem-sucedida da v2, portanto a atualização exige um novo pareamento.
+- BLE foi validado fisicamente nos dois sentidos de descoberta. O caminho Desktop iniciando o GATT é o mais confiável no hardware atual; o Android iniciando contra o GATT do Windows apresentou timeout de status 147.
+- O pareamento bilateral e a revogação dos dois Trust Hubs foram validados fisicamente.
+- Builds `DEBUG` agora confirmam o PIN automaticamente nos dois aplicativos para acelerar os testes. O bypass do Desktop está protegido por `#if DEBUG`; no Android está protegido por `BuildConfig.DEBUG`. Não remover essas guardas e nunca aplicar o bypass a Release.
+- O Android passou a recuperar grupos travados removendo e recriando somente o grupo Wi-Fi Direct. O código não pode desligar, negar ou desconectar a rede Wi-Fi de infraestrutura.
+- Um grupo anterior chegou a formar com Windows GO em `192.168.137.1` e Android cliente em `192.168.137.247`, coexistindo com a rede Wi-Fi normal do telefone. No teste mais recente, o adaptador virtual do Windows permaneceu com um grupo órfão e o Android não recriou sua interface P2P; a recuperação automática adicionada precisa ser retestada.
+- O novo grupo foi formado com o Wi-Fi comum mantido ativo, usando Android `192.168.137.91`, e a sessão mTLS chegou ao estado ativo no Desktop. O erro `INCOMPATIBLE_DIGEST` não reapareceu com a chave v2.
+- A sessão caiu antes do fim de uma observação de 45 segundos e o Desktop informou `Canal rápido interrompido; retomada disponível por cinco minutos`. Keepalive, causa da queda e retomada autenticada permanecem pendentes e devem ser investigados depois que as features do Desktop forem concluídas.
+- Publicação: o repositório GitHub deve receber exclusivamente o conteúdo rastreado dentro de `mobile/`, reposicionado na raiz. Não publicar `desktop/`, `protocol/`, este documento ou outros arquivos externos. O Desktop permanece somente local.
+
+## 16. Implementação local do Marco 4
+
+O Marco 4 foi implementado no Desktop após o estado descrito na seção anterior. A compilação do aplicativo passa sem avisos, mas os testes automatizados e a validação física foram deliberadamente adiados por solicitação do proprietário. O proprietário autorizou posteriormente sua publicação como `0.1.2-alpha`, mantendo essa pendência documentada.
+
+- O listener do canal rápido aceita conexões sucessivas e mantém uma sessão segura independente por dispositivo confiável.
+- `TransportEnvelope` ganhou uso efetivo no Desktop com endereçamento individual, múltiplos destinos e broadcast autorizado.
+- Todo envelope originado no Desktop recebe assinatura ECDSA da identidade persistente; envelopes recebidos são validados contra o Trust Hub.
+- O roteador aplica validade, limite de saltos, deduplicação limitada em memória, entrega local e encaminhamento pelo coordenador.
+- O estado de grupo possui lista de membros, época e coordenador. O proprietário inicial do grupo Wi-Fi Direct é adotado como coordenador lógico.
+- A eleição é determinística e considera elegibilidade, alimentação externa, capacidade de pares, bateria, estabilidade e desempate por ID.
+- Quando o coordenador some, uma nova época é criada e, se este Desktop vencer, ele publica `CoordinatorCommitted` aos membros restantes.
+- A interface mostra quantidade de membros, coordenador e época atuais.
+
+Antes de chamar o Marco 4 de concluído para publicação, executar os testes descritos em `desktop/docs/VEYRO_DESKTOP_MILESTONE_4.md`, incluindo o cenário notebook + dois Androids. A diretriz de publicação mais recente do proprietário é criar futuramente o repositório separado `veyro-desktop` e publicar somente o conteúdo de `desktop/`; nada fora dessa pasta pode fazer parte daquele repositório.

@@ -16,7 +16,10 @@ public static class TrustedPeerAuthenticator
         ValidateChallenge(challenge);
         using var key = ECDsa.Create();
         key.ImportPkcs8PrivateKey(identityKey.PrivateKeyPkcs8, out _);
-        return key.SignData(CreatePayload(deviceId, challenge), HashAlgorithmName.SHA256);
+        return key.SignData(
+            CreatePayload(deviceId, challenge),
+            HashAlgorithmName.SHA256,
+            DSASignatureFormat.IeeeP1363FixedFieldConcatenation);
     }
 
     public static bool Verify(TrustedDevice device, ReadOnlySpan<byte> challenge, ReadOnlySpan<byte> signature)
@@ -32,7 +35,11 @@ public static class TrustedPeerAuthenticator
         {
             using var key = ECDsa.Create();
             key.ImportSubjectPublicKeyInfo(Convert.FromBase64String(device.IdentityPublicKeyBase64), out _);
-            return key.VerifyData(CreatePayload(device.DeviceId, challenge), signature, HashAlgorithmName.SHA256);
+            return key.VerifyData(
+                CreatePayload(device.DeviceId, challenge),
+                signature,
+                HashAlgorithmName.SHA256,
+                DSASignatureFormat.IeeeP1363FixedFieldConcatenation);
         }
         catch (Exception exception) when (exception is FormatException or CryptographicException)
         {

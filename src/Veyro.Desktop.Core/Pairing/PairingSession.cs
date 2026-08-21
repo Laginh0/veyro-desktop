@@ -100,7 +100,8 @@ public sealed class PairingSession : IDisposable
             throw new PairingProtocolException($"The remote ephemeral key is invalid: {exception.Message}");
         }
 
-        var sharedSecret = ephemeralKey.DeriveKeyMaterial(remoteEphemeralKey.PublicKey);
+        var rawSharedSecret = ephemeralKey.DeriveRawSecretAgreement(remoteEphemeralKey.PublicKey);
+        var sharedSecret = SHA256.HashData(rawSharedSecret);
         try
         {
             var transcript = CreateTranscript(LocalHello, remote);
@@ -109,6 +110,7 @@ public sealed class PairingSession : IDisposable
         }
         finally
         {
+            CryptographicOperations.ZeroMemory(rawSharedSecret);
             CryptographicOperations.ZeroMemory(sharedSecret);
         }
 
@@ -228,7 +230,10 @@ public sealed class PairingSession : IDisposable
     {
         using var identityKey = ECDsa.Create();
         identityKey.ImportPkcs8PrivateKey(privateKeyPkcs8, out _);
-        return identityKey.SignData(data, HashAlgorithmName.SHA256);
+        return identityKey.SignData(
+            data,
+            HashAlgorithmName.SHA256,
+            DSASignatureFormat.IeeeP1363FixedFieldConcatenation);
     }
 
     private static bool Verify(byte[] publicKeySpki, byte[] data, byte[] signature)
@@ -237,7 +242,11 @@ public sealed class PairingSession : IDisposable
         {
             using var identityKey = ECDsa.Create();
             identityKey.ImportSubjectPublicKeyInfo(publicKeySpki, out _);
-            return identityKey.VerifyData(data, signature, HashAlgorithmName.SHA256);
+            return identityKey.VerifyData(
+                data,
+                signature,
+                HashAlgorithmName.SHA256,
+                DSASignatureFormat.IeeeP1363FixedFieldConcatenation);
         }
         catch (CryptographicException)
         {

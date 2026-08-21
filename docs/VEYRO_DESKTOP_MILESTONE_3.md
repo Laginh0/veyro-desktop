@@ -1,87 +1,87 @@
-# Veyro Desktop — Marco 3
+# Veyro Desktop — Milestone 3
 
-## Resultado
+## Outcome
 
-O lado Windows do Marco 3 implementa:
+The Windows side of Milestone 3 implements:
 
-- publicação e aceitação de grupo Wi-Fi Direct pelas APIs WinRT;
-- descoberta programática de pares Wi-Fi Direct;
-- obtenção dos endereços exclusivos do enlace direto;
-- negociação de função, porta, ALPN e token de retomada pelo GATT;
-- assinatura da oferta do canal rápido com a identidade persistente;
-- socket TCP vinculado explicitamente ao endereço Wi-Fi Direct;
-- TLS mútuo 1.2/1.3 com ALPN `veyro/1`;
-- certificado preso à chave pública já confirmada no Trust Hub;
-- hello de versão e identidade depois do TLS;
-- keepalive a cada 5 segundos e timeout em 15 segundos;
-- retomada autenticada por token por até 5 minutos;
-- estado do canal rápido exibido na interface.
+- Wi-Fi Direct group publication and acceptance through WinRT APIs;
+- programmatic Wi-Fi Direct peer discovery;
+- retrieval of link-exclusive addresses;
+- role, port, ALPN, and resume-token negotiation over GATT;
+- signing of the fast-channel offer with the persistent identity;
+- a TCP socket explicitly bound to the Wi-Fi Direct address;
+- mutual TLS 1.2/1.3 with ALPN `veyro/1`;
+- certificate pinning to the public key already confirmed in the Trust Hub;
+- a post-TLS version and identity hello;
+- keepalive every 5 seconds with a 15-second timeout;
+- authenticated resumption for up to 5 minutes;
+- fast-channel state exposed in the interface.
 
-## Independência de infraestrutura
+## Infrastructure independence
 
-O endereço IP não é transportado no anúncio BLE nem aceito de configuração externa. Depois da formação do grupo, o Desktop obtém `LocalHostName` e `RemoteHostName` diretamente de `WiFiDirectDevice.GetConnectionEndpointPairs()`.
+The IP address is not advertised over BLE and cannot be supplied by external configuration. After group formation, Desktop obtains `LocalHostName` and `RemoteHostName` directly from `WiFiDirectDevice.GetConnectionEndpointPairs()`.
 
-O servidor TCP escuta somente no endereço local desse par. O cliente faz `Bind` no mesmo endereço antes de conectar ao endereço remoto do enlace. Dessa forma, um endereço de Ethernet, Wi-Fi de infraestrutura, loopback ou LAN não é escolhido silenciosamente como fallback.
+The TCP server listens only on the local address from that endpoint pair. The client binds to the same address before connecting to the remote direct-link address. Ethernet, infrastructure Wi-Fi, loopback, or LAN addresses are therefore never selected as a silent fallback.
 
-O Desktop publica um grupo autônomo e aceita solicitações pela `WiFiDirectConnectionListener`. A preferência por group owner é negociada com o par; topologia com vários membros permanece para o Marco 4.
+Desktop publishes an autonomous group and accepts requests through `WiFiDirectConnectionListener`. Group-owner preference is negotiated with the peer; multi-member topology remains part of Milestone 4.
 
-## Negociação BLE
+## BLE negotiation
 
-`protocol/veyro_transport.proto` adiciona `FastChannelOffer` e `FastChannelAnswer` ao `BleControlPacket`.
+`protocol/veyro_transport.proto` adds `FastChannelOffer` and `FastChannelAnswer` to `BleControlPacket`.
 
-A oferta contém:
+The offer contains:
 
-- ID da sessão;
-- ID do dispositivo ofertante;
-- função no grupo;
-- porta TCP;
+- session ID;
+- offering-device ID;
+- group role;
+- TCP port;
 - ALPN;
-- token aleatório de retomada;
-- assinatura ECDSA da oferta canônica.
+- random resume token;
+- ECDSA signature of the canonical offer.
 
-Não há endereço IP na oferta. A assinatura usa o domínio `Veyro.FastChannelOffer.v1`; campos variáveis possuem comprimento `uint32` big-endian. Ofertas de aparelhos ausentes ou revogados no Trust Hub são rejeitadas antes do socket.
+The offer never includes an IP address. It uses the `Veyro.FastChannelOffer.v1` signature domain and big-endian `uint32` length prefixes for variable fields. Offers from devices that are absent from, or revoked in, the Trust Hub are rejected before socket creation.
 
-## TLS e identidade
+## TLS and identity
 
-O Desktop cria em memória um certificado X.509 autoassinado usando a chave ECDSA P-256 persistente da instalação. No Windows, a chave é importada temporariamente para o armazenamento CNG exigido pelo Schannel.
+Desktop creates an in-memory self-signed X.509 certificate with the installation's persistent ECDSA P-256 key. On Windows, the key is temporarily imported into the CNG store required by Schannel.
 
-A cadeia pública do certificado não é usada como autoridade. A validação compara em tempo constante a chave pública SPKI do certificado com a chave armazenada no Trust Hub e exige que o `CN` seja o ID esperado. Os dois lados apresentam certificado, portanto um membro do grupo Wi-Fi Direct sem confiança não abre sessão Veyro.
+The certificate's public chain is not used as an authority. Validation compares the certificate's public SPKI in constant time against the Trust Hub key and requires the expected device ID in the `CN`. Both peers present a certificate, so an untrusted member of the Wi-Fi Direct group cannot open a Veyro session.
 
-Depois do TLS, ambos enviam `FastChannelHello` com sessão, identidade e versão major/minor. Divergência de sessão, identidade ou versão major encerra o socket.
+After TLS, both peers send `FastChannelHello` with the session, identity, and major/minor version. A session, identity, or major-version mismatch closes the socket.
 
-## Keepalive e retomada
+## Keepalive and resumption
 
-`FastChannelPacket` multiplexa hello, keepalive, confirmação, retomada e `TransportEnvelope` dentro do framing `VYRO` do Marco 1. Todo o framing passa dentro do `SslStream`.
+`FastChannelPacket` multiplexes hello, keepalive, acknowledgement, resumption, and `TransportEnvelope` data inside the Milestone 1 `VYRO` framing. All framing travels inside `SslStream`.
 
-Ausência de qualquer pacote por mais de 15 segundos encerra a sessão. O token de retomada possui 32 bytes, é vinculado ao ID do aparelho e à sessão, comparado em tempo constante e expira após 5 minutos. A sequência confirmada nunca pode retroceder.
+No incoming packet for more than 15 seconds closes the session. The 32-byte resume token is bound to the peer ID and session, compared in constant time, and expires after 5 minutes. The acknowledged sequence can never move backwards.
 
-Após reconstruir o enlace Wi-Fi Direct, o coordenador reutiliza o estado ainda válido, executa novamente TLS e o hello e negocia `ResumeRequest`/`ResumeResponse` antes de liberar a sessão.
+After reconstructing the Wi-Fi Direct link, the coordinator reuses still-valid state, repeats TLS and the hello, and negotiates `ResumeRequest`/`ResumeResponse` before releasing the session.
 
-## Validação realizada
+## Completed validation
 
-- compilação do gerenciador WinRT de Wi-Fi Direct no alvo Windows 10/11;
-- inicialização estável do executável com a API Wi-Fi Direct disponível;
-- socket TCP real em loopback entre dois pares;
-- autenticação mútua TLS 1.3 pelo Schannel;
-- certificado incorreto rejeitado pelo pinning do Trust Hub;
-- hello de sessão e versão em ambas as direções;
-- pacote Protobuf transportado pelo framing dentro do TLS;
-- oferta BLE assinada e adulteração rejeitada;
-- token de retomada, expiração e sequência testados.
+- WinRT Wi-Fi Direct manager compiled for the Windows 10/11 target;
+- executable initialized stably with the Wi-Fi Direct API available;
+- real loopback TCP socket between two automated peers;
+- mutual TLS 1.3 authentication through Schannel;
+- wrong certificate rejected by Trust Hub pinning;
+- session and version hello in both directions;
+- Protobuf packet transported through framing inside TLS;
+- signed BLE offer with tamper rejection;
+- resume token, expiration, and sequence validation.
 
-O loopback valida o protocolo e a segurança do socket, mas não substitui o rádio. O Bluetooth estava desligado durante o smoke test final e o aplicativo agora apresenta esse estado sem tentar iniciar GATT. O gerenciador Wi-Fi Direct iniciou sem derrubar o processo.
+Loopback validates the socket protocol and security but does not replace radio testing. If Bluetooth is disabled, the application reports that state without attempting to start GATT.
 
-## Pendência de aceitação física
+## Pending physical acceptance
 
-O Veyro Android `0.1.8-alpha` instalado no aparelho de teste ainda não implementa os contratos dos Marcos 2 e 3. Por isso, não houve formação real de grupo nem socket Windows ↔ Android.
+Veyro Android `0.1.9-alpha` now implements the Milestone 2 and 3 contracts: BLE/GATT, identity and Trust Hub, `WifiP2pManager`, signed-offer validation, mutual TLS, framing, hello, keepalive, resumption, and `TransportEnvelope`. Builds and automated tests pass on both platforms, but a real Windows ↔ Android group and socket have not yet been exercised.
 
-Para aceitar fisicamente o Marco 3 será necessário:
+Physical acceptance requires:
 
-1. implementar no Android os UUIDs GATT e mensagens de pareamento;
-2. implementar `WifiP2pManager` e a negociação `FastChannelOffer`/`Answer`;
-3. ligar Bluetooth e Wi-Fi nos dois aparelhos;
-4. parear pelo PIN;
-5. formar o grupo sem internet e sem associação a roteador;
-6. verificar TLS, keepalive, queda e reconstrução do grupo.
+1. installing the Android `0.1.9-alpha` development APK;
+2. enabling Bluetooth and Wi-Fi on both devices;
+3. pairing through the PIN;
+4. forming the group without internet or router membership;
+5. verifying TLS, keepalive, link loss, and group reconstruction;
+6. repeating an Android ↔ Android test to confirm that Nearby did not regress.
 
-O código Windows está preparado para esse teste, mas o resultado não deve ser anunciado como interoperabilidade física concluída antes dessa execução.
+The detailed checklist is in `mobile/docs/DESKTOP_INTEROPERABILITY.md`. Physical interoperability must not be reported as complete until this test is executed.

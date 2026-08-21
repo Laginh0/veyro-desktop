@@ -1,77 +1,78 @@
-# Veyro Desktop — Marco 1
+# Veyro Desktop — Milestone 1
 
-## Resultado
+## Outcome
 
-O aplicativo Windows está isolado em um repositório autônomo:
+The Windows application is isolated by platform inside the Veyro workspace:
 
 ```text
-veyro-desktop/
-├── protocol/     # contratos Protobuf necessários ao Desktop
-├── src/          # Windows/C#/.NET/WPF
-├── tests/
-└── docs/
+Veyro/
+├── mobile/       # Android project
+├── desktop/      # Windows/C#/.NET/WPF project
+└── protocol/     # shared Protobuf contracts
 ```
 
-O Desktop é uma fundação executável. Ele cria uma identidade local persistente, verifica a presença das APIs Windows planejadas, apresenta o estado em uma interface mínima e permanece acessível pela bandeja do sistema.
+Desktop is an executable foundation. It creates a persistent local identity, checks the availability of the planned Windows APIs, exposes status through a minimal interface, and remains accessible from the system tray.
 
-## Decisão de UI
+## UI decision
 
-O probe local compilou e executou as projeções WinRT para:
+The local probe compiled and ran the WinRT projections for:
 
 - `BluetoothLEAdvertisementWatcher`;
 - `WiFiDirectDevice.GetDeviceSelector`.
 
-WPF sobre .NET 10 foi escolhido para a fundação porque oferece integração direta com WinRT e bandeja do sistema com poucas dependências. O núcleo não depende de WPF; portanto, uma limitação encontrada nos testes físicos pode motivar outra camada de UI sem descartar identidade, logs, framing ou contratos.
+WPF on .NET 10 was selected because it provides direct WinRT and system-tray integration with few dependencies. The core does not depend on WPF, so a limitation found during physical testing can motivate another UI layer without discarding identity, logs, framing, or contracts.
 
-## Contratos
+## Contracts
 
-`protocol/veyro_message.proto` preserva o contrato de aplicação compatível com o cliente móvel. `protocol/veyro_transport.proto` introduz separadamente metadados de transporte e mensagens de negociação:
+`protocol/veyro_message.proto` preserves the application contract shared with Mobile. `protocol/veyro_transport.proto` separately defines transport metadata and negotiation messages:
 
-- versão major/minor;
-- ID imutável da mensagem;
-- origem e destinos;
-- broadcast explicitamente autorizado;
-- tipo do payload;
-- janela de validade;
-- limite de encaminhamento;
-- sequência e confirmação;
-- autenticação de origem opaca;
-- payload cifrado opaco ao coordenador.
+- major/minor version;
+- immutable message ID;
+- source and destinations;
+- explicitly authorized broadcast;
+- payload type;
+- validity window;
+- forwarding limit;
+- sequence and acknowledgement;
+- opaque origin authentication;
+- payload opaque to the coordinator.
 
-O Desktop mantém cópias versionadas dos contratos de que precisa, sem depender de arquivos externos ao repositório. A sincronização futura com o cliente móvel deve ser deliberada e validada por compatibilidade.
+The root `protocol/` folder is now the single source of truth consumed by Desktop and Mobile. Contract changes must be deliberate and compatibility-tested.
 
-## Framing preliminar
+## Initial framing
 
-O framing de controle é deliberadamente pequeno e será revisado antes do canal definitivo:
+The control framing is deliberately small:
 
-| Campo | Tamanho | Descrição |
+| Field | Size | Description |
 | --- | ---: | --- |
 | Magic | 4 bytes | ASCII `VYRO` |
-| Versão | 1 byte | versão do framing, inicialmente `1` |
-| Flags | 1 byte | reservado para semântica documentada posteriormente |
-| Reservado | 2 bytes | deve ser zero |
-| Comprimento | 4 bytes | inteiro sem sinal, big-endian |
-| Payload | variável | no máximo 1 MiB no canal de controle |
+| Version | 1 byte | framing version, initially `1` |
+| Flags | 1 byte | reserved for documented semantics |
+| Reserved | 2 bytes | must be zero |
+| Length | 4 bytes | unsigned, big-endian integer |
+| Payload | variable | at most 1 MiB on the control channel |
 
-O leitor suporta streams fragmentados e rejeita magic/versão inválidos, campos reservados não nulos, tamanho excessivo e frames truncados antes de entregar dados às camadas superiores. Arquivos grandes não usam este limite como um único frame; streaming, multiplexação e controle de fluxo serão especificados no Marco 3.
+The reader supports fragmented streams and rejects invalid magic/version values, nonzero reserved fields, oversized payloads, and truncated frames before data reaches higher layers. Large files do not use one control frame; they require dedicated streaming and flow control.
 
-## Identidade e segurança
+## Identity and security
 
-O Marco 1 cria um ID aleatório de 16 caracteres hexadecimais, compatível com o formato atual de identidade Android. O registro é serializado e protegido pelo DPAPI no escopo do usuário Windows; a gravação usa substituição atômica.
+Milestone 1 creates a random 16-character hexadecimal ID compatible with the Android identity format. The record is serialized and protected with user-scoped Windows DPAPI, using atomic replacement for writes.
 
-A chave criptográfica de pareamento ainda não foi escolhida. Algoritmos, TLS/Noise, armazenamento de chave não exportável, rotação e revogação dependem da revisão de segurança anterior ao Marco 2. O campo de autenticação no envelope permanece opaco para evitar fixar prematuramente uma primitiva.
+Later milestones selected persistent ECDSA P-256 identity, ephemeral ECDH pairing, bilateral PIN confirmation, Trust Hub revocation, and mutual TLS. Authentication fields remain versioned protocol data rather than implicit platform behavior.
 
 ## Logs
 
-Os logs são estruturados em JSON Lines. Nomes relacionados a clipboard, SMS, telefone, contatos, notificações, PIN, tokens, segredos, chaves, autenticação, conteúdo e payload são censurados. Identificadores recebem hash truncado; quebras de linha são removidas para impedir injeção de registros.
+Logs use JSON Lines. Property names related to clipboard data, SMS, phone calls, contacts, notifications, PINs, tokens, secrets, keys, authentication, content, and payloads are redacted. Identifiers receive a truncated hash, and line breaks are removed to prevent log injection.
 
-## Fora do Marco 1
+## Original Milestone 1 boundary
 
-- anúncio ou busca BLE real;
-- pareamento e Trust Hub;
-- grupo Wi-Fi Direct e sockets;
-- criptografia de sessão;
-- conexão com o Android;
-- inicialização automática e instalador.
+The following items were intentionally outside Milestone 1 and were implemented in later milestones:
 
-Esses itens não são simulados pela interface. O próximo marco começa pela descoberta BLE e pelo pareamento bilateral em hardware real.
+- real BLE advertising and scanning;
+- pairing and Trust Hub;
+- Wi-Fi Direct group and sockets;
+- session encryption;
+- Android connection;
+- automatic startup and installer.
+
+The initial interface did not simulate these capabilities. Milestone 2 began with real BLE discovery and bilateral pairing.
