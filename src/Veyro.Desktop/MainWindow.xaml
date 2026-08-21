@@ -3,9 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Veyro"
         Width="940"
-        Height="620"
+        Height="760"
         MinWidth="780"
-        MinHeight="520"
+        MinHeight="640"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource VeyroSurface}">
     <Grid>
@@ -42,8 +42,8 @@
                 </StackPanel>
 
                 <StackPanel Grid.Row="2">
-                    <TextBlock Text="FUNDAÇÃO" Foreground="#7F9AB7" FontSize="10" FontWeight="Bold" />
-                    <TextBlock Text="Marco 1 em desenvolvimento" Foreground="#BED0E3" Margin="0,5,0,0" TextWrapping="Wrap" />
+                    <TextBlock Text="DESCOBERTA E CONFIANÇA" Foreground="#7F9AB7" FontSize="10" FontWeight="Bold" />
+                    <TextBlock Text="Marco 2" Foreground="#BED0E3" Margin="0,5,0,0" TextWrapping="Wrap" />
                 </StackPanel>
             </Grid>
         </Border>
@@ -103,13 +103,69 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <StackPanel>
-                            <TextBlock Text="Base local pronta" FontWeight="Bold" FontSize="16" Foreground="#173A63" />
-                            <TextBlock Text="A descoberta real será habilitada no Marco 2, depois dos testes de pareamento bilateral em hardware."
+                            <TextBlock Text="Descoberta local ativa" FontWeight="Bold" FontSize="16" Foreground="#173A63" />
+                            <TextBlock x:Name="DiscoveryStatusText" Text="Preparando anúncio e varredura Bluetooth…"
                                        Margin="0,5,20,0" TextWrapping="Wrap" Foreground="#365675" />
                         </StackPanel>
                         <Button Grid.Column="1" Content="Minimizar para a bandeja" Click="HideToTray_Click" VerticalAlignment="Center" />
                     </Grid>
                 </Border>
+
+                <Grid Margin="0,18,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="18" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0" Background="White" CornerRadius="14" Padding="20" BorderBrush="#E2E8F0" BorderThickness="1">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Dispositivos próximos" FontSize="17" FontWeight="Bold" Foreground="{StaticResource VeyroInk}" />
+                            <TextBlock Grid.Row="1" Text="Presença Veyro detectada por BLE" Margin="0,4,0,12" Foreground="{StaticResource VeyroMuted}" />
+                            <ListBox x:Name="NearbyDevicesList" Grid.Row="2" MinHeight="105" MaxHeight="160" BorderThickness="0" Background="#F7F9FC" SelectionChanged="NearbyDevicesList_SelectionChanged">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="8,6">
+                                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" Foreground="{StaticResource VeyroInk}" />
+                                            <TextBlock Text="{Binding Details}" Margin="0,3,0,0" FontSize="11" Foreground="{StaticResource VeyroMuted}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <Button x:Name="PairButton" Grid.Row="3" Content="Parear dispositivo" Margin="0,14,0,0" IsEnabled="False" Click="PairButton_Click" />
+                        </Grid>
+                    </Border>
+
+                    <Border Grid.Column="2" Background="White" CornerRadius="14" Padding="20" BorderBrush="#E2E8F0" BorderThickness="1">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Trust Hub" FontSize="17" FontWeight="Bold" Foreground="{StaticResource VeyroInk}" />
+                            <TextBlock Grid.Row="1" Text="Identidades confirmadas por você" Margin="0,4,0,12" Foreground="{StaticResource VeyroMuted}" />
+                            <ListBox x:Name="TrustedDevicesList" Grid.Row="2" MinHeight="105" MaxHeight="160" BorderThickness="0" Background="#F7F9FC" SelectionChanged="TrustedDevicesList_SelectionChanged">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="8,6">
+                                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" Foreground="{StaticResource VeyroInk}" />
+                                            <TextBlock Text="{Binding Details}" Margin="0,3,0,0" FontSize="11" Foreground="{StaticResource VeyroMuted}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <Button x:Name="RevokeButton" Grid.Row="3" Content="Revogar confiança" Margin="0,14,0,0" Background="#9A3434" IsEnabled="False" Click="RevokeButton_Click" />
+                        </Grid>
+                    </Border>
+                </Grid>
 
                 <TextBlock x:Name="DataPathText" Margin="2,20,0,0" FontSize="11" Foreground="#7A8490" TextTrimming="CharacterEllipsis" />
             </StackPanel>

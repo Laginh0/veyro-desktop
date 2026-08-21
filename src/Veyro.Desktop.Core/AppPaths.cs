@@ -1,6 +1,11 @@
 namespace Veyro.Desktop.Core;
 
-public sealed record AppPaths(string DataDirectory, string IdentityFile, string LogDirectory)
+public sealed record AppPaths(
+    string DataDirectory,
+    string IdentityFile,
+    string IdentityKeyFile,
+    string TrustFile,
+    string LogDirectory)
 {
     public static AppPaths CreateDefault()
     {
@@ -9,6 +14,8 @@ public sealed record AppPaths(string DataDirectory, string IdentityFile, string 
         return new AppPaths(
             dataDirectory,
             Path.Combine(dataDirectory, "identity.dat"),
+            Path.Combine(dataDirectory, "identity-key.dat"),
+            Path.Combine(dataDirectory, "trusted-devices.dat"),
             Path.Combine(dataDirectory, "logs"));
     }
 }

@@ -2,6 +2,10 @@ using System.Windows;
 using Veyro.Desktop.Core;
 using Veyro.Desktop.Core.Identity;
 using Veyro.Desktop.Core.Logging;
+using Veyro.Desktop.Bluetooth;
+using Veyro.Desktop.Core.Discovery;
+using Veyro.Desktop.Core.Trust;
+using Veyro.Desktop.Pairing;
 using Application = System.Windows.Application;
 
 namespace Veyro.Desktop;
@@ -10,8 +14,10 @@ public partial class App : Application
 {
     private SanitizedFileLogger? logger;
     private TrayIconService? trayIcon;
+    private BleDiscoveryService? bleDiscovery;
+    private BlePairingCoordinator? pairingCoordinator;
 
-    protected override void OnStartup(StartupEventArgs e)
+    protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
@@ -20,14 +26,48 @@ public partial class App : Application
 
         try
         {
-            var identityStore = new LocalIdentityStore(paths.IdentityFile, new DpapiIdentityProtector());
+            var protector = new DpapiIdentityProtector();
+            var identityStore = new LocalIdentityStore(paths.IdentityFile, protector);
             var identity = identityStore.LoadOrCreate();
+            var identityKey = new LocalIdentityKeyStore(paths.IdentityKeyFile, protector).LoadOrCreate();
+            var trustStore = new TrustStore(paths.TrustFile, protector);
             var capabilities = WindowsTransportCapabilityProbe.Probe();
+            var advertisedCapabilities = VeyroCapability.BleControl;
 
-            var window = new MainWindow(identity, capabilities, paths);
+            bleDiscovery = new BleDiscoveryService(advertisedCapabilities);
+            pairingCoordinator = new BlePairingCoordinator(
+                identity,
+                identityKey,
+                advertisedCapabilities,
+                trustStore);
+
+            var window = new MainWindow(
+                identity,
+                capabilities,
+                paths,
+                bleDiscovery,
+                pairingCoordinator,
+                trustStore);
             trayIcon = new TrayIconService(window, Shutdown);
             MainWindow = window;
             window.Show();
+
+            if (capabilities.BluetoothLowEnergyApiAvailable)
+            {
+                try
+                {
+                    await pairingCoordinator.StartAsync();
+                    bleDiscovery.Start();
+                }
+                catch (Exception exception)
+                {
+                    window.ReportBluetoothFailure(exception.Message);
+                    logger.Write(
+                        LogLevel.Error,
+                        "ble_milestone_2_start_failed",
+                        new Dictionary<string, object?> { ["exception_type"] = exception.GetType().Name });
+                }
+            }
 
             logger.Write(
                 LogLevel.Information,
@@ -57,6 +97,8 @@ public partial class App : Application
     protected override void OnExit(ExitEventArgs e)
     {
         trayIcon?.Dispose();
+        bleDiscovery?.Dispose();
+        pairingCoordinator?.Dispose();
         logger?.Write(LogLevel.Information, "desktop_stopped");
         logger?.Dispose();
         base.OnExit(e);

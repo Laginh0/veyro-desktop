@@ -63,6 +63,48 @@ message ProtocolRejection {
   repeated ProtocolVersion supported_versions = 2;
 }
 
+// Small control messages exchanged through the Veyro BLE GATT characteristic.
+// Pairing PINs are never transmitted: both peers derive the same six digits
+// from their ephemeral ECDH exchange and compare them out of band.
+message BleControlPacket {
+  oneof body {
+    PairingHello pairing_hello = 1;
+    PairingConfirmation pairing_confirmation = 2;
+    ReconnectChallenge reconnect_challenge = 3;
+    ReconnectProof reconnect_proof = 4;
+  }
+}
+
+message PairingHello {
+  string pairing_id = 1;
+  string device_id = 2;
+  string display_name = 3;
+  uint32 capabilities = 4;
+  int64 created_at_unix_ms = 5;
+  bytes nonce = 6;
+  bytes identity_public_key_spki = 7;
+  bytes ephemeral_public_key_spki = 8;
+  bytes signature = 9;
+}
+
+message PairingConfirmation {
+  string pairing_id = 1;
+  bool accepted = 2;
+  bytes verification_digest = 3;
+  bytes signature = 4;
+}
+
+message ReconnectChallenge {
+  string requesting_device_id = 1;
+  bytes challenge = 2;
+}
+
+message ReconnectProof {
+  string device_id = 1;
+  bytes challenge = 2;
+  bytes signature = 3;
+}
+
 enum ProtocolRejectionReason {
   REJECTION_UNSPECIFIED = 0;
   UNSUPPORTED_VERSION = 1;
