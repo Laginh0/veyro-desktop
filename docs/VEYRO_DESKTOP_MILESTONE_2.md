@@ -72,4 +72,4 @@ Não se considera a ausência desse contrato no Android uma falha do rádio ou d
 
 Os testes automatizados cobrem codec do anúncio, expiração de descobertas, persistência da chave, PIN idêntico nos dois pares, rejeição de mensagem adulterada, confirmação bilateral, serialização Protobuf, Trust Hub protegido, revogação e prova de reconexão.
 
-O Marco 3 só deve iniciar depois de instalar uma versão Android compatível e executar o pareamento bilateral em hardware real.
+A implementação isolada do Marco 3 pode ser exercitada com sockets e pares automatizados. Sua aceitação física continua condicionada à instalação de uma versão Android compatível e ao pareamento bilateral em hardware real.

@@ -6,6 +6,8 @@ using Veyro.Desktop.Bluetooth;
 using Veyro.Desktop.Core.Discovery;
 using Veyro.Desktop.Core.Trust;
 using Veyro.Desktop.Pairing;
+using Veyro.Desktop.FastChannel;
+using Veyro.Desktop.WifiDirect;
 using Application = System.Windows.Application;
 
 namespace Veyro.Desktop;
@@ -16,6 +18,7 @@ public partial class App : Application
     private TrayIconService? trayIcon;
     private BleDiscoveryService? bleDiscovery;
     private BlePairingCoordinator? pairingCoordinator;
+    private FastChannelCoordinator? fastChannelCoordinator;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -31,8 +34,11 @@ public partial class App : Application
             var identity = identityStore.LoadOrCreate();
             var identityKey = new LocalIdentityKeyStore(paths.IdentityKeyFile, protector).LoadOrCreate();
             var trustStore = new TrustStore(paths.TrustFile, protector);
-            var capabilities = WindowsTransportCapabilityProbe.Probe();
-            var advertisedCapabilities = VeyroCapability.BleControl;
+            var capabilities = await WindowsTransportCapabilityProbe.ProbeAsync();
+            var advertisedCapabilities = VeyroCapability.BleControl |
+                (capabilities.WiFiDirectApiAvailable
+                    ? VeyroCapability.WifiDirectData
+                    : VeyroCapability.None);
 
             bleDiscovery = new BleDiscoveryService(advertisedCapabilities);
             pairingCoordinator = new BlePairingCoordinator(
@@ -40,6 +46,13 @@ public partial class App : Application
                 identityKey,
                 advertisedCapabilities,
                 trustStore);
+            var wifiDirectManager = new WifiDirectManager();
+            fastChannelCoordinator = new FastChannelCoordinator(
+                identity,
+                identityKey,
+                trustStore,
+                pairingCoordinator,
+                wifiDirectManager);
 
             var window = new MainWindow(
                 identity,
@@ -47,16 +60,34 @@ public partial class App : Application
                 paths,
                 bleDiscovery,
                 pairingCoordinator,
-                trustStore);
+                trustStore,
+                fastChannelCoordinator);
             trayIcon = new TrayIconService(window, Shutdown);
             MainWindow = window;
             window.Show();
 
-            if (capabilities.BluetoothLowEnergyApiAvailable)
+            if (capabilities.BluetoothOperational)
             {
                 try
                 {
                     await pairingCoordinator.StartAsync();
+                }
+                catch (Exception exception)
+                {
+                    window.ReportBluetoothFailure(exception.Message);
+                    logger.Write(
+                        LogLevel.Error,
+                        "ble_gatt_start_failed",
+                        new Dictionary<string, object?>
+                        {
+                            ["exception_type"] = exception.GetType().Name,
+                            ["hresult"] = exception.HResult,
+                            ["diagnostic"] = exception.Message
+                        });
+                }
+
+                try
+                {
                     bleDiscovery.Start();
                 }
                 catch (Exception exception)
@@ -64,7 +95,35 @@ public partial class App : Application
                     window.ReportBluetoothFailure(exception.Message);
                     logger.Write(
                         LogLevel.Error,
-                        "ble_milestone_2_start_failed",
+                        "ble_discovery_start_failed",
+                        new Dictionary<string, object?>
+                        {
+                            ["exception_type"] = exception.GetType().Name,
+                            ["hresult"] = exception.HResult,
+                            ["diagnostic"] = exception.Message
+                        });
+                }
+            }
+            else
+            {
+                window.ReportBluetoothFailure(
+                    capabilities.BluetoothAdapterAvailable
+                        ? "Ligue o rádio Bluetooth e reinicie o Veyro para anunciar e descobrir dispositivos."
+                        : "Nenhum adaptador Bluetooth LE foi encontrado.");
+            }
+
+            if (capabilities.WiFiDirectApiAvailable)
+            {
+                try
+                {
+                    fastChannelCoordinator.Start();
+                }
+                catch (Exception exception)
+                {
+                    window.ReportWifiDirectFailure(exception.Message);
+                    logger.Write(
+                        LogLevel.Error,
+                        "wifi_direct_milestone_3_start_failed",
                         new Dictionary<string, object?> { ["exception_type"] = exception.GetType().Name });
                 }
             }
@@ -76,6 +135,9 @@ public partial class App : Application
                 {
                     ["device_id"] = identity.DeviceId,
                     ["ble_api_available"] = capabilities.BluetoothLowEnergyApiAvailable,
+                    ["ble_adapter_available"] = capabilities.BluetoothAdapterAvailable,
+                    ["ble_radio_on"] = capabilities.BluetoothRadioOn,
+                    ["ble_peripheral_role_supported"] = capabilities.BluetoothPeripheralRoleSupported,
                     ["wifi_direct_api_available"] = capabilities.WiFiDirectApiAvailable
                 });
         }
@@ -98,6 +160,7 @@ public partial class App : Application
     {
         trayIcon?.Dispose();
         bleDiscovery?.Dispose();
+        fastChannelCoordinator?.DisposeAsync().AsTask().GetAwaiter().GetResult();
         pairingCoordinator?.Dispose();
         logger?.Write(LogLevel.Information, "desktop_stopped");
         logger?.Dispose();

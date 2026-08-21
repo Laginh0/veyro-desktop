@@ -41,6 +41,12 @@ public sealed class BlePairingCoordinator : IDisposable
 
     public event EventHandler? TrustChanged;
 
+    public event EventHandler<FastChannelOfferEventArgs>? FastChannelOfferReceived;
+
+    public event EventHandler<FastChannelAnswerEventArgs>? FastChannelAnswerReceived;
+
+    public string? ActiveTrustedDeviceId { get; private set; }
+
     public async Task StartAsync()
     {
         ObjectDisposedException.ThrowIf(disposed, this);
@@ -56,7 +62,8 @@ public sealed class BlePairingCoordinator : IDisposable
         await packetGate.WaitAsync();
         try
         {
-            ResetSession();
+            ActiveTrustedDeviceId = null;
+            ResetSession(clearReply: true);
             StatusChanged?.Invoke(this, new PairingStatusEventArgs("Conectando ao dispositivo próximo…"));
             await client.ConnectAsync(device.BluetoothAddress);
             reply = client.SendAsync;
@@ -70,7 +77,7 @@ public sealed class BlePairingCoordinator : IDisposable
         }
         catch (Exception exception)
         {
-            ResetSession();
+            ResetSession(clearReply: true);
             StatusChanged?.Invoke(this, new PairingStatusEventArgs("Falha ao iniciar o pareamento", exception));
             throw;
         }
@@ -112,12 +119,23 @@ public sealed class BlePairingCoordinator : IDisposable
         var revoked = trustStore.Revoke(deviceId);
         if (revoked)
         {
+            if (string.Equals(ActiveTrustedDeviceId, deviceId, StringComparison.Ordinal))
+            {
+                ActiveTrustedDeviceId = null;
+            }
+
             TrustChanged?.Invoke(this, EventArgs.Empty);
             StatusChanged?.Invoke(this, new PairingStatusEventArgs("Confiança revogada"));
         }
 
         return revoked;
     }
+
+    public Task SendFastChannelOfferAsync(Veyro.Protocol.FastChannelOffer offer) =>
+        SendControlPacketAsync(PairingMessageCodec.EncodeFastChannelOffer(offer));
+
+    public Task SendFastChannelAnswerAsync(string sessionId, bool accepted, string? reason = null) =>
+        SendControlPacketAsync(PairingMessageCodec.EncodeFastChannelAnswer(sessionId, accepted, reason));
 
     private async void Server_PacketReceived(object? sender, BleControlPacketEventArgs args) =>
         await ProcessPacketSafelyAsync(args.Packet, server.NotifyAsync);
@@ -144,6 +162,12 @@ public sealed class BlePairingCoordinator : IDisposable
                     break;
                 case Veyro.Protocol.BleControlPacket.BodyOneofCase.ReconnectProof:
                     ProcessReconnectProof(packet.ReconnectProof);
+                    break;
+                case Veyro.Protocol.BleControlPacket.BodyOneofCase.FastChannelOffer:
+                    FastChannelOfferReceived?.Invoke(this, new FastChannelOfferEventArgs(packet.FastChannelOffer));
+                    break;
+                case Veyro.Protocol.BleControlPacket.BodyOneofCase.FastChannelAnswer:
+                    FastChannelAnswerReceived?.Invoke(this, new FastChannelAnswerEventArgs(packet.FastChannelAnswer));
                     break;
                 case Veyro.Protocol.BleControlPacket.BodyOneofCase.None:
                 default:
@@ -235,6 +259,7 @@ public sealed class BlePairingCoordinator : IDisposable
         }
 
         trustStore.MarkSeen(trustedDevice.DeviceId);
+        ActiveTrustedDeviceId = trustedDevice.DeviceId;
         TrustChanged?.Invoke(this, EventArgs.Empty);
         StatusChanged?.Invoke(this, new PairingStatusEventArgs($"{trustedDevice.DisplayName} autenticado novamente"));
     }
@@ -248,16 +273,39 @@ public sealed class BlePairingCoordinator : IDisposable
 
         var trustedDevice = pairingSession.CreateTrustedDevice();
         trustStore.Trust(trustedDevice);
+        ActiveTrustedDeviceId = trustedDevice.DeviceId;
         TrustChanged?.Invoke(this, EventArgs.Empty);
         StatusChanged?.Invoke(this, new PairingStatusEventArgs($"{trustedDevice.DisplayName} adicionado ao Trust Hub"));
         ResetSession();
     }
 
-    private void ResetSession()
+    private async Task SendControlPacketAsync(byte[] packet)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        await packetGate.WaitAsync();
+        try
+        {
+            if (reply is null)
+            {
+                throw new InvalidOperationException("Não existe um canal BLE ativo para negociar o Wi-Fi Direct.");
+            }
+
+            await reply(packet);
+        }
+        finally
+        {
+            packetGate.Release();
+        }
+    }
+
+    private void ResetSession(bool clearReply = false)
     {
         pairingSession?.Dispose();
         pairingSession = null;
-        reply = null;
+        if (clearReply)
+        {
+            reply = null;
+        }
         if (reconnectChallenge is not null)
         {
             CryptographicOperations.ZeroMemory(reconnectChallenge);
@@ -275,7 +323,7 @@ public sealed class BlePairingCoordinator : IDisposable
         disposed = true;
         server.PacketReceived -= Server_PacketReceived;
         client.PacketReceived -= Client_PacketReceived;
-        ResetSession();
+        ResetSession(clearReply: true);
         client.Dispose();
         server.Dispose();
         packetGate.Dispose();

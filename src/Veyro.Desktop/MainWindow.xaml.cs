@@ -6,6 +6,7 @@ using Veyro.Desktop.Bluetooth;
 using Veyro.Desktop.Core.Discovery;
 using Veyro.Desktop.Core.Trust;
 using Veyro.Desktop.Pairing;
+using Veyro.Desktop.FastChannel;
 using MediaColor = System.Windows.Media.Color;
 
 namespace Veyro.Desktop;
@@ -15,6 +16,7 @@ public partial class MainWindow : Window
     private readonly BleDiscoveryService discoveryService;
     private readonly BlePairingCoordinator pairingCoordinator;
     private readonly TrustStore trustStore;
+    private readonly FastChannelCoordinator fastChannelCoordinator;
 
     public MainWindow(
         LocalIdentity identity,
@@ -22,12 +24,14 @@ public partial class MainWindow : Window
         AppPaths paths,
         BleDiscoveryService discoveryService,
         BlePairingCoordinator pairingCoordinator,
-        TrustStore trustStore)
+        TrustStore trustStore,
+        FastChannelCoordinator fastChannelCoordinator)
     {
         InitializeComponent();
         this.discoveryService = discoveryService;
         this.pairingCoordinator = pairingCoordinator;
         this.trustStore = trustStore;
+        this.fastChannelCoordinator = fastChannelCoordinator;
 
         DeviceNameText.Text = identity.DisplayName;
         DeviceIdText.Text = $"ID {identity.DeviceId}";
@@ -35,9 +39,9 @@ public partial class MainWindow : Window
 
         ApplyCapabilityStatus(
             BleStatusText,
-            capabilities.BluetoothLowEnergyApiAvailable,
-            "API disponível",
-            "API indisponível");
+            capabilities.BluetoothOperational,
+            "Rádio ligado",
+            capabilities.BluetoothAdapterAvailable ? "Rádio desligado" : "Adaptador indisponível");
         ApplyCapabilityStatus(
             WifiDirectStatusText,
             capabilities.WiFiDirectApiAvailable,
@@ -49,6 +53,7 @@ public partial class MainWindow : Window
         pairingCoordinator.PinAvailable += PairingCoordinator_PinAvailable;
         pairingCoordinator.StatusChanged += PairingCoordinator_StatusChanged;
         pairingCoordinator.TrustChanged += PairingCoordinator_TrustChanged;
+        fastChannelCoordinator.StatusChanged += FastChannelCoordinator_StatusChanged;
         RefreshNearbyDevices();
         RefreshTrustedDevices();
     }
@@ -57,6 +62,12 @@ public partial class MainWindow : Window
     {
         DiscoveryStatusText.Text = $"Bluetooth indisponível: {message}";
         DiscoveryStatusText.Foreground = new SolidColorBrush(MediaColor.FromRgb(154, 52, 52));
+    }
+
+    public void ReportWifiDirectFailure(string message)
+    {
+        WifiDirectStatusText.Text = $"●  Indisponível: {message}";
+        WifiDirectStatusText.Foreground = new SolidColorBrush(MediaColor.FromRgb(154, 52, 52));
     }
 
     private static void ApplyCapabilityStatus(
@@ -95,6 +106,17 @@ public partial class MainWindow : Window
 
     private void PairingCoordinator_TrustChanged(object? sender, EventArgs e) =>
         _ = Dispatcher.InvokeAsync(RefreshTrustedDevices);
+
+    private void FastChannelCoordinator_StatusChanged(object? sender, FastChannelStatusEventArgs e) =>
+        _ = Dispatcher.InvokeAsync(() =>
+        {
+            WifiDirectStatusText.Text = $"●  {e.Message}";
+            WifiDirectStatusText.Foreground = new SolidColorBrush(
+                e.Error is null ? MediaColor.FromRgb(36, 99, 59) : MediaColor.FromRgb(154, 52, 52));
+            ActiveSessionsText.Text = fastChannelCoordinator.ActiveSessionCount == 1
+                ? "1 sessão segura"
+                : $"{fastChannelCoordinator.ActiveSessionCount} sessões seguras";
+        });
 
     private void PairingCoordinator_PinAvailable(object? sender, PairingPinEventArgs e) =>
         _ = Dispatcher.InvokeAsync(async () =>

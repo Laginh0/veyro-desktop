@@ -75,6 +75,29 @@ public static class PairingMessageCodec
         return Encode(packet);
     }
 
+    public static byte[] EncodeFastChannelOffer(Veyro.Protocol.FastChannelOffer offer)
+    {
+        ArgumentNullException.ThrowIfNull(offer);
+        return Encode(new Veyro.Protocol.BleControlPacket { FastChannelOffer = offer });
+    }
+
+    public static byte[] EncodeFastChannelAnswer(
+        string sessionId,
+        bool accepted,
+        string? reason = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
+        return Encode(new Veyro.Protocol.BleControlPacket
+        {
+            FastChannelAnswer = new Veyro.Protocol.FastChannelAnswer
+            {
+                SessionId = sessionId,
+                Accepted = accepted,
+                Reason = reason ?? string.Empty
+            }
+        });
+    }
+
     public static Veyro.Protocol.BleControlPacket Decode(ReadOnlySpan<byte> bytes)
     {
         if (bytes.IsEmpty || bytes.Length > MaximumBleControlPacketSize)

@@ -1,8 +1,8 @@
 # Veyro Desktop
 
-Versão atual: **0.1.0-alpha**.
+Versão atual: **0.1.1-alpha**.
 
-Aplicativo Windows do ecossistema Veyro. A base usa C#/.NET 10 e WPF, com APIs WinRT de Bluetooth Low Energy e Wi-Fi Direct. O Desktop já anuncia presença, procura pares Veyro e oferece pareamento protegido por PIN e Trust Hub. O canal de dados Wi-Fi Direct pertence ao Marco 3.
+Aplicativo Windows do ecossistema Veyro. A base usa C#/.NET 10 e WPF, com APIs WinRT de Bluetooth Low Energy e Wi-Fi Direct. O Desktop anuncia presença, procura pares Veyro, oferece pareamento protegido por PIN e Trust Hub e prepara um canal rápido autenticado sobre Wi-Fi Direct.
 
 O produto é projetado para comunicação direta entre os rádios dos dispositivos. Internet, nuvem, roteador e associação prévia à mesma rede local não fazem parte do caminho principal.
 
@@ -51,7 +51,9 @@ Não registrar conteúdo de clipboard, SMS, contatos, notificações, PINs, chav
 
 - Marco 1: concluído;
 - Marco 2 no Windows: implementado e coberto por testes automatizados;
+- Marco 3 no Windows: grupo Wi-Fi Direct, negociação BLE, TLS mútuo, keepalive e retomada implementados;
 - interoperabilidade física com Android: requer que o cliente móvel implemente o contrato BLE descrito em `docs/VEYRO_DESKTOP_MILESTONE_2.md`;
-- Marco 3, Wi-Fi Direct e sockets seguros: não iniciado.
+- teste físico do canal Wi-Fi Direct: pendente de cliente Android compatível;
+- envio de arquivos e demais funções úteis: pertence ao Marco 5.
 
 Enquanto o produto estiver em alpha, cada atualização publicada incrementa o patch: `0.1.0-alpha`, `0.1.1-alpha`, `0.1.2-alpha` e assim por diante.

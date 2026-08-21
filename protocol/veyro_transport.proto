@@ -72,6 +72,8 @@ message BleControlPacket {
     PairingConfirmation pairing_confirmation = 2;
     ReconnectChallenge reconnect_challenge = 3;
     ReconnectProof reconnect_proof = 4;
+    FastChannelOffer fast_channel_offer = 5;
+    FastChannelAnswer fast_channel_answer = 6;
   }
 }
 
@@ -103,6 +105,69 @@ message ReconnectProof {
   string device_id = 1;
   bytes challenge = 2;
   bytes signature = 3;
+}
+
+enum FastChannelRole {
+  FAST_CHANNEL_ROLE_UNSPECIFIED = 0;
+  GROUP_OWNER = 1;
+  GROUP_CLIENT = 2;
+}
+
+// The IP address is deliberately absent. Each peer must use only the endpoint
+// supplied by the established Wi-Fi Direct link, never an address from the LAN.
+message FastChannelOffer {
+  string session_id = 1;
+  string device_id = 2;
+  FastChannelRole role = 3;
+  uint32 tcp_port = 4;
+  string tls_alpn = 5;
+  bytes resume_token = 6;
+  bytes signature = 7;
+}
+
+message FastChannelAnswer {
+  string session_id = 1;
+  bool accepted = 2;
+  string reason = 3;
+}
+
+message FastChannelPacket {
+  oneof body {
+    FastChannelHello hello = 1;
+    KeepAlive keep_alive = 2;
+    KeepAliveAcknowledgement keep_alive_acknowledgement = 3;
+    ResumeRequest resume_request = 4;
+    ResumeResponse resume_response = 5;
+    TransportEnvelope transport_envelope = 6;
+  }
+}
+
+message FastChannelHello {
+  string session_id = 1;
+  string device_id = 2;
+  uint32 protocol_major = 3;
+  uint32 protocol_minor = 4;
+}
+
+message KeepAlive {
+  uint64 sequence = 1;
+  int64 sent_at_unix_ms = 2;
+}
+
+message KeepAliveAcknowledgement {
+  uint64 sequence = 1;
+}
+
+message ResumeRequest {
+  string previous_session_id = 1;
+  uint64 last_received_sequence = 2;
+  bytes resume_token = 3;
+}
+
+message ResumeResponse {
+  string previous_session_id = 1;
+  bool accepted = 2;
+  uint64 resume_from_sequence = 3;
 }
 
 enum ProtocolRejectionReason {
