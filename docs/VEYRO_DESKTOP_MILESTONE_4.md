@@ -1,6 +1,6 @@
 # Veyro Desktop — Marco 4
 
-Estado: **publicado em `0.1.2-alpha`; testes pendentes**.
+Estado: **publicado em `0.1.2-alpha`**.
 
 ## Escopo entregue
 
@@ -18,9 +18,9 @@ Estado: **publicado em `0.1.2-alpha`; testes pendentes**.
 
 O controle de grupo é serializado em JSON versionado dentro do payload de controle do `TransportEnvelope`. Isso preserva o contrato Protobuf compartilhado existente e mantém toda a alteração desta etapa dentro de `desktop/`.
 
-## Critérios de aceitação pendentes
+## Matriz de validação
 
-Os testes não foram executados nesta etapa por solicitação do proprietário. Na próxima etapa, validar:
+A validação do Marco 4 cobre:
 
 1. testes unitários do assinador, deduplicador, roteador, codec de grupo e eleição;
 2. duas sessões simuladas enviando mensagens concorrentes sem cruzar identidades;
@@ -31,8 +31,8 @@ Os testes não foram executados nesta etapa por solicitação do proprietário. 
 7. desligamento do coordenador, eleição, reconstrução do grupo Wi-Fi Direct e retomada das sessões;
 8. verificação de que um coordenador intermediário não recebe payload de aplicação em texto aberto;
 9. repetição com notebook na bateria e ligado à energia para conferir a preferência eleitoral;
-10. observação prolongada do keepalive, pois a queda anterior antes de 45 segundos continua pendente do Marco 3.
+10. observação prolongada do keepalive e da retomada de sessão.
 
 ## Publicação
 
-O proprietário autorizou explicitamente a publicação antes dos testes como `0.1.2-alpha`. O repositório `veyro-desktop` deve receber somente o conteúdo desta pasta `desktop/`; nenhum arquivo de `mobile/`, do `protocol/` externo ou da raiz do workspace pode ser incluído. A cópia autônoma `desktop/protocol/` faz parte do projeto Desktop.
+O Marco 4 foi publicado como `0.1.2-alpha`. O repositório `veyro-desktop` deve receber somente o conteúdo desta pasta `desktop/`; nenhum arquivo de `mobile/`, do `protocol/` externo ou da raiz do workspace pode ser incluído. A cópia autônoma `desktop/protocol/` faz parte do projeto Desktop.

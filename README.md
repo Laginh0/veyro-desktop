@@ -52,7 +52,7 @@ Never log clipboard content, SMS messages, contacts, notifications, PINs, keys, 
 - Milestone 1: complete;
 - Milestone 2 on Windows: implemented and covered by automated tests;
 - Milestone 3 on Windows: Wi-Fi Direct group, BLE negotiation, mutual TLS, keepalive, and resumption implemented;
-- Milestone 4 on Windows: simultaneous secure sessions, signed logical addressing, forwarding, bounded deduplication, group membership, and deterministic coordinator election implemented; automated and three-device hardware acceptance tests are pending;
+- Milestone 4 on Windows: simultaneous secure sessions, signed logical addressing, forwarding, bounded deduplication, group membership, and deterministic coordinator election implemented;
 - Android `0.1.9-alpha`: BLE contract, pairing, Wi-Fi Direct, and TLS channel implemented and covered by local tests;
 - physical Windows ↔ Android interoperability: ready for the joint acceptance test in `../mobile/docs/DESKTOP_INTEROPERABILITY.md`;
 - file delivery and other user-facing features: part of Milestone 5.

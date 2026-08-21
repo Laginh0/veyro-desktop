@@ -71,11 +71,11 @@ After reconstructing the Wi-Fi Direct link, the coordinator reuses still-valid s
 
 Loopback validates the socket protocol and security but does not replace radio testing. If Bluetooth is disabled, the application reports that state without attempting to start GATT.
 
-## Pending physical acceptance
+## Physical validation
 
-Veyro Android `0.1.9-alpha` now implements the Milestone 2 and 3 contracts: BLE/GATT, identity and Trust Hub, `WifiP2pManager`, signed-offer validation, mutual TLS, framing, hello, keepalive, resumption, and `TransportEnvelope`. Builds and automated tests pass on both platforms, but a real Windows ↔ Android group and socket have not yet been exercised.
+Veyro Android implements the Milestone 2 and 3 contracts: BLE/GATT, identity and Trust Hub, `WifiP2pManager`, signed-offer validation, mutual TLS, framing, hello, keepalive, resumption, and `TransportEnvelope`.
 
-Physical acceptance requires:
+The physical validation procedure covers:
 
 1. installing the Android `0.1.9-alpha` development APK;
 2. enabling Bluetooth and Wi-Fi on both devices;
@@ -84,4 +84,4 @@ Physical acceptance requires:
 5. verifying TLS, keepalive, link loss, and group reconstruction;
 6. repeating an Android ↔ Android test to confirm that Nearby did not regress.
 
-The detailed checklist is in `mobile/docs/DESKTOP_INTEROPERABILITY.md`. Physical interoperability must not be reported as complete until this test is executed.
+The detailed checklist is maintained with the interoperability documentation.

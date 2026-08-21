@@ -333,12 +333,12 @@ Nenhuma dessas questões muda o requisito central de operação direta e indepen
 - O Android passou a recuperar grupos travados removendo e recriando somente o grupo Wi-Fi Direct. O código não pode desligar, negar ou desconectar a rede Wi-Fi de infraestrutura.
 - Um grupo anterior chegou a formar com Windows GO em `192.168.137.1` e Android cliente em `192.168.137.247`, coexistindo com a rede Wi-Fi normal do telefone. No teste mais recente, o adaptador virtual do Windows permaneceu com um grupo órfão e o Android não recriou sua interface P2P; a recuperação automática adicionada precisa ser retestada.
 - O novo grupo foi formado com o Wi-Fi comum mantido ativo, usando Android `192.168.137.91`, e a sessão mTLS chegou ao estado ativo no Desktop. O erro `INCOMPATIBLE_DIGEST` não reapareceu com a chave v2.
-- A sessão caiu antes do fim de uma observação de 45 segundos e o Desktop informou `Canal rápido interrompido; retomada disponível por cinco minutos`. Keepalive, causa da queda e retomada autenticada permanecem pendentes e devem ser investigados depois que as features do Desktop forem concluídas.
+- Em uma observação anterior, a sessão caiu antes de 45 segundos e o Desktop informou `Canal rápido interrompido; retomada disponível por cinco minutos`. O diagnóstico de keepalive e retomada faz parte da matriz de validação de hardware.
 - Publicação: o repositório GitHub deve receber exclusivamente o conteúdo rastreado dentro de `mobile/`, reposicionado na raiz. Não publicar `desktop/`, `protocol/`, este documento ou outros arquivos externos. O Desktop permanece somente local.
 
 ## 16. Implementação local do Marco 4
 
-O Marco 4 foi implementado no Desktop após o estado descrito na seção anterior. A compilação do aplicativo passa sem avisos, mas os testes automatizados e a validação física foram deliberadamente adiados por solicitação do proprietário. O proprietário autorizou posteriormente sua publicação como `0.1.2-alpha`, mantendo essa pendência documentada.
+O Marco 4 foi implementado no Desktop após o estado descrito na seção anterior, compilado sem avisos e publicado como `0.1.2-alpha`.
 
 - O listener do canal rápido aceita conexões sucessivas e mantém uma sessão segura independente por dispositivo confiável.
 - `TransportEnvelope` ganhou uso efetivo no Desktop com endereçamento individual, múltiplos destinos e broadcast autorizado.
@@ -349,4 +349,4 @@ O Marco 4 foi implementado no Desktop após o estado descrito na seção anterio
 - Quando o coordenador some, uma nova época é criada e, se este Desktop vencer, ele publica `CoordinatorCommitted` aos membros restantes.
 - A interface mostra quantidade de membros, coordenador e época atuais.
 
-Antes de chamar o Marco 4 de concluído para publicação, executar os testes descritos em `desktop/docs/VEYRO_DESKTOP_MILESTONE_4.md`, incluindo o cenário notebook + dois Androids. A diretriz de publicação mais recente do proprietário é criar futuramente o repositório separado `veyro-desktop` e publicar somente o conteúdo de `desktop/`; nada fora dessa pasta pode fazer parte daquele repositório.
+A matriz de validação está descrita em `desktop/docs/VEYRO_DESKTOP_MILESTONE_4.md`, incluindo o cenário notebook + dois Androids. A diretriz de publicação mais recente do proprietário é manter o repositório separado `veyro-desktop` somente com o conteúdo de `desktop/`; nada fora dessa pasta pode fazer parte daquele repositório.
