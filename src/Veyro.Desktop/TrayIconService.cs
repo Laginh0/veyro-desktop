@@ -12,6 +12,14 @@ public sealed class TrayIconService : IDisposable
     {
         var menu = new Forms.ContextMenuStrip();
         menu.Items.Add("Abrir Veyro", null, (_, _) => ShowWindow(window));
+        var startWithWindows = new Forms.ToolStripMenuItem("Iniciar com o Windows")
+        {
+            CheckOnClick = true,
+            Checked = StartupRegistrationService.IsEnabled()
+        };
+        startWithWindows.CheckedChanged += (_, _) =>
+            StartupRegistrationService.SetEnabled(startWithWindows.Checked);
+        menu.Items.Add(startWithWindows);
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("Sair", null, (_, _) => shutdown());
 

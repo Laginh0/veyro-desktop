@@ -43,7 +43,7 @@
 
                 <StackPanel Grid.Row="2">
                     <TextBlock Text="CANAL DIRETO SEGURO" Foreground="#7F9AB7" FontSize="10" FontWeight="Bold" />
-                    <TextBlock Text="Marcos 5 e 6" Foreground="#BED0E3" Margin="0,5,0,0" TextWrapping="Wrap" />
+                    <TextBlock Text="Marco 7" Foreground="#BED0E3" Margin="0,5,0,0" TextWrapping="Wrap" />
                 </StackPanel>
             </Grid>
         </Border>
@@ -255,6 +255,76 @@
                                       SelectionChanged="PermissionPolicyCombo_SelectionChanged" />
                         </Grid>
                     </StackPanel>
+                </Border>
+
+                <Border Margin="0,18,0,0" Background="White" CornerRadius="14" Padding="22" BorderBrush="#E2E8F0" BorderThickness="1">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="18" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="Pastas deste computador" FontSize="17" FontWeight="Bold" Foreground="{StaticResource VeyroInk}" />
+                            <TextBlock Text="Somente pastas adicionadas aqui ficam visíveis" Margin="0,4,0,10" TextWrapping="Wrap" Foreground="{StaticResource VeyroMuted}" />
+                            <ListBox x:Name="SharedFoldersList" MinHeight="110" MaxHeight="180" BorderThickness="0" Background="#F7F9FC">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="8,5">
+                                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding Path}" FontSize="10" TextTrimming="CharacterEllipsis" Foreground="{StaticResource VeyroMuted}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <WrapPanel Margin="0,10,0,0">
+                                <Button Content="Adicionar pasta" Click="AddSharedFolder_Click" Margin="0,0,8,0" />
+                                <Button Content="Remover" Click="RemoveSharedFolder_Click" Background="#9A3434" />
+                            </WrapPanel>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Pastas do dispositivo" FontSize="17" FontWeight="Bold" Foreground="{StaticResource VeyroInk}" />
+                            <TextBlock Text="Usa o primeiro destino selecionado acima" Margin="0,4,0,10" Foreground="{StaticResource VeyroMuted}" />
+                            <ListBox x:Name="RemoteFilesList" MinHeight="110" MaxHeight="180" BorderThickness="0" Background="#F7F9FC"
+                                     MouseDoubleClick="RemoteFilesList_MouseDoubleClick">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="8,5">
+                                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding Details}" FontSize="10" Foreground="{StaticResource VeyroMuted}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <WrapPanel Margin="0,10,0,0">
+                                <Button Content="Listar raízes" Click="RequestRemoteFolders_Click" Margin="0,0,8,0" />
+                                <Button Content="Abrir / baixar" Click="OpenRemoteFile_Click" />
+                            </WrapPanel>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <Border Margin="0,18,0,0" Background="#13253A" CornerRadius="14" Padding="22">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="220" />
+                        </Grid.RowDefinitions>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Mesa digitalizadora" FontSize="17" FontWeight="Bold" Foreground="White" />
+                            <Button Grid.Column="1" Content="Limpar" Click="ClearTablet_Click" Padding="12,6" />
+                        </Grid>
+                        <TextBlock Grid.Row="1" Text="Pressão e inclinação são preservadas no quadro; o ponteiro do Windows acompanha a caneta."
+                                   Margin="0,5,0,10" Foreground="#BED0E3" TextWrapping="Wrap" />
+                        <Border Grid.Row="2" Background="White" CornerRadius="9" ClipToBounds="True">
+                            <Canvas x:Name="TabletCanvas" Background="White" ClipToBounds="True" />
+                        </Border>
+                    </Grid>
                 </Border>
 
                 <TextBlock x:Name="DataPathText" Margin="2,20,0,0" FontSize="11" Foreground="#7A8490" TextTrimming="CharacterEllipsis" />

@@ -8,6 +8,7 @@ public sealed class FeaturePermissionStore(string filePath, IIdentityProtector p
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly object sync = new();
+    private List<FeaturePermissionEntry>? cache;
 
     public FeatureAccessPolicy GetPolicy(string deviceId, VeyroFeature feature)
     {
@@ -53,14 +54,20 @@ public sealed class FeaturePermissionStore(string filePath, IIdentityProtector p
     }
 
     private static FeatureAccessPolicy DefaultPolicy(VeyroFeature feature) =>
-        feature == VeyroFeature.SecureCommands
+        feature is VeyroFeature.SecureCommands or VeyroFeature.RemoteInput
             ? FeatureAccessPolicy.Disabled
             : FeatureAccessPolicy.Ask;
 
     private List<FeaturePermissionEntry> Load()
     {
+        if (cache is not null)
+        {
+            return [.. cache];
+        }
+
         if (!File.Exists(filePath))
         {
+            cache = [];
             return [];
         }
 
@@ -78,7 +85,8 @@ public sealed class FeaturePermissionStore(string filePath, IIdentityProtector p
                 throw new InvalidDataException("The feature permission store is invalid.");
             }
 
-            return entries;
+            cache = entries;
+            return [.. entries];
         }
         finally
         {
@@ -98,6 +106,7 @@ public sealed class FeaturePermissionStore(string filePath, IIdentityProtector p
             var temporaryFile = filePath + ".tmp";
             File.WriteAllBytes(temporaryFile, protectedBytes);
             File.Move(temporaryFile, filePath, true);
+            cache = [.. entries];
         }
         finally
         {

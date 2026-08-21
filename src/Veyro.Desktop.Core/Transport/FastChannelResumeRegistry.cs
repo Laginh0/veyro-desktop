@@ -1,12 +1,43 @@
 using System.Security.Cryptography;
+using System.Text.Json;
+using Veyro.Desktop.Core.Identity;
 
 namespace Veyro.Desktop.Core.Transport;
 
-public sealed class FastChannelResumeRegistry(TimeSpan? retention = null)
+public sealed class FastChannelResumeRegistry
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly object sync = new();
     private readonly Dictionary<string, FastChannelResumeState> states = new(StringComparer.Ordinal);
-    private readonly TimeSpan retentionWindow = retention ?? TimeSpan.FromMinutes(5);
+    private readonly TimeSpan retentionWindow;
+    private readonly string? stateFile;
+    private readonly IIdentityProtector? protector;
+
+    public FastChannelResumeRegistry(
+        TimeSpan? retention = null,
+        string? stateFile = null,
+        IIdentityProtector? protector = null)
+    {
+        retentionWindow = retention ?? TimeSpan.FromHours(24);
+        if (retentionWindow <= TimeSpan.Zero || retentionWindow > TimeSpan.FromDays(7))
+        {
+            throw new ArgumentOutOfRangeException(nameof(retention));
+        }
+
+        if ((stateFile is null) != (protector is null))
+        {
+            throw new ArgumentException("Persistent resume state requires both a path and a protector.");
+        }
+
+        this.stateFile = stateFile;
+        this.protector = protector;
+        foreach (var state in Load())
+        {
+            states[state.SessionId] = state;
+        }
+
+        RemoveExpired(DateTimeOffset.UtcNow);
+    }
 
     public FastChannelResumeState Create(string remoteDeviceId, DateTimeOffset? now = null)
     {
@@ -20,7 +51,19 @@ public sealed class FastChannelResumeRegistry(TimeSpan? retention = null)
             timestamp.Add(retentionWindow));
         lock (sync)
         {
+            foreach (var stale in states.Values
+                .Where(item => string.Equals(item.RemoteDeviceId, remoteDeviceId, StringComparison.Ordinal))
+                .Select(item => item.SessionId)
+                .ToArray())
+            {
+                if (states.Remove(stale, out var removed))
+                {
+                    CryptographicOperations.ZeroMemory(removed.ResumeToken);
+                }
+            }
+
             states[state.SessionId] = state;
+            SaveLocked();
         }
 
         return state;
@@ -44,6 +87,9 @@ public sealed class FastChannelResumeRegistry(TimeSpan? retention = null)
                 return false;
             }
 
+            state = state with { ExpiresAt = now.Add(retentionWindow) };
+            states[sessionId] = state;
+            SaveLocked();
             return true;
         }
     }
@@ -72,6 +118,7 @@ public sealed class FastChannelResumeRegistry(TimeSpan? retention = null)
             }
 
             states[sessionId] = state with { LastReceivedSequence = lastReceivedSequence };
+            SaveLocked();
             return true;
         }
     }
@@ -86,10 +133,93 @@ public sealed class FastChannelResumeRegistry(TimeSpan? retention = null)
                 .ToArray();
             foreach (var sessionId in expired)
             {
-                states.Remove(sessionId);
+                if (states.Remove(sessionId, out var state))
+                {
+                    CryptographicOperations.ZeroMemory(state.ResumeToken);
+                }
+            }
+
+            if (expired.Length > 0)
+            {
+                SaveLocked();
             }
 
             return expired.Length;
+        }
+    }
+
+    public int RemoveDevice(string remoteDeviceId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(remoteDeviceId);
+        lock (sync)
+        {
+            var sessionIds = states.Values
+                .Where(state => string.Equals(state.RemoteDeviceId, remoteDeviceId, StringComparison.Ordinal))
+                .Select(state => state.SessionId)
+                .ToArray();
+            foreach (var sessionId in sessionIds)
+            {
+                if (states.Remove(sessionId, out var state))
+                {
+                    CryptographicOperations.ZeroMemory(state.ResumeToken);
+                }
+            }
+
+            if (sessionIds.Length > 0)
+            {
+                SaveLocked();
+            }
+
+            return sessionIds.Length;
+        }
+    }
+
+    private IReadOnlyList<FastChannelResumeState> Load()
+    {
+        if (stateFile is null || protector is null || !File.Exists(stateFile))
+        {
+            return [];
+        }
+
+        var plaintext = protector.Unprotect(File.ReadAllBytes(stateFile));
+        try
+        {
+            var loaded = JsonSerializer.Deserialize<List<FastChannelResumeState>>(plaintext, JsonOptions) ?? [];
+            if (loaded.Any(state =>
+                    !Guid.TryParseExact(state.SessionId, "N", out _) ||
+                    string.IsNullOrWhiteSpace(state.RemoteDeviceId) ||
+                    state.ResumeToken.Length != 32) ||
+                loaded.Select(state => state.SessionId).Distinct(StringComparer.Ordinal).Count() != loaded.Count)
+            {
+                throw new InvalidDataException("The persisted resume registry is invalid.");
+            }
+
+            return loaded;
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(plaintext);
+        }
+    }
+
+    private void SaveLocked()
+    {
+        if (stateFile is null || protector is null)
+        {
+            return;
+        }
+
+        Directory.CreateDirectory(Path.GetDirectoryName(stateFile)!);
+        var plaintext = JsonSerializer.SerializeToUtf8Bytes(states.Values, JsonOptions);
+        try
+        {
+            var temporaryFile = stateFile + ".tmp";
+            File.WriteAllBytes(temporaryFile, protector.Protect(plaintext));
+            File.Move(temporaryFile, stateFile, true);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(plaintext);
         }
     }
 }

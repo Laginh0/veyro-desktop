@@ -9,6 +9,7 @@ using Veyro.Desktop.Pairing;
 using Veyro.Desktop.FastChannel;
 using Veyro.Desktop.Features;
 using Veyro.Desktop.Core.Features;
+using Veyro.Desktop.Core.Transport;
 using Veyro.Desktop.WifiDirect;
 using Application = System.Windows.Application;
 
@@ -57,18 +58,25 @@ public partial class App : Application
                 advertisedCapabilities,
                 trustStore);
             var wifiDirectManager = new WifiDirectManager();
+            var resumeRegistry = new FastChannelResumeRegistry(
+                TimeSpan.FromHours(24),
+                paths.ResumeSessionsFile,
+                protector);
             fastChannelCoordinator = new FastChannelCoordinator(
                 identity,
                 identityKey,
                 trustStore,
                 pairingCoordinator,
                 wifiDirectManager,
-                advertisedCapabilities);
+                advertisedCapabilities,
+                resumeRegistry);
             var featurePermissions = new FeaturePermissionStore(paths.FeaturePermissionsFile, protector);
+            var sharedFolders = new SharedFolderStore(paths.SharedFoldersFile, protector);
             featureService = new VeyroFeatureService(
                 fastChannelCoordinator,
                 trustStore,
                 featurePermissions,
+                sharedFolders,
                 paths.IncomingFilesDirectory);
 
             var window = new MainWindow(
@@ -82,8 +90,13 @@ public partial class App : Application
                 featureService);
             trayIcon = new TrayIconService(window, Shutdown);
             featureService.NotificationReceived += FeatureService_NotificationReceived;
+            Microsoft.Win32.SystemEvents.PowerModeChanged += SystemEvents_PowerModeChanged;
             MainWindow = window;
             window.Show();
+            if (e.Args.Contains("--background", StringComparer.OrdinalIgnoreCase))
+            {
+                window.Hide();
+            }
 
             if (capabilities.BluetoothOperational)
             {
@@ -177,6 +190,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        Microsoft.Win32.SystemEvents.PowerModeChanged -= SystemEvents_PowerModeChanged;
         if (featureService is not null)
         {
             featureService.NotificationReceived -= FeatureService_NotificationReceived;
@@ -197,4 +211,25 @@ public partial class App : Application
             trayIcon?.ShowNotification(
                 string.IsNullOrWhiteSpace(e.AppName) ? e.Title : $"{e.AppName} · {e.Title}",
                 e.Body));
+
+    private void SystemEvents_PowerModeChanged(object sender, Microsoft.Win32.PowerModeChangedEventArgs e)
+    {
+        if (e.Mode == Microsoft.Win32.PowerModes.Resume && fastChannelCoordinator is not null)
+        {
+            _ = Dispatcher.InvokeAsync(() =>
+            {
+                try
+                {
+                    fastChannelCoordinator.RecoverAfterSystemResume();
+                }
+                catch (Exception exception)
+                {
+                    logger?.Write(
+                        LogLevel.Warning,
+                        "resume_recovery_failed",
+                        new Dictionary<string, object?> { ["exception_type"] = exception.GetType().Name });
+                }
+            });
+        }
+    }
 }

@@ -26,10 +26,13 @@ public sealed class VeyroFeatureService : IAsyncDisposable
     private readonly FastChannelCoordinator channelCoordinator;
     private readonly TrustStore trustStore;
     private readonly FeaturePermissionStore permissionStore;
+    private readonly SharedFolderStore sharedFolderStore;
+    private readonly WindowsInputController inputController = new();
     private readonly string incomingDirectory;
     private readonly ConcurrentDictionary<string, TaskCompletionSource<bool>> outgoingFileOffers = new();
     private readonly ConcurrentDictionary<string, IncomingFileState> incomingFiles = new();
     private readonly ConcurrentDictionary<string, long> pendingPings = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, InputRateWindow> inputRateWindows = new(StringComparer.Ordinal);
     private readonly CancellationTokenSource lifetime = new();
     private bool disposed;
 
@@ -37,11 +40,13 @@ public sealed class VeyroFeatureService : IAsyncDisposable
         FastChannelCoordinator channelCoordinator,
         TrustStore trustStore,
         FeaturePermissionStore permissionStore,
+        SharedFolderStore sharedFolderStore,
         string incomingDirectory)
     {
         this.channelCoordinator = channelCoordinator;
         this.trustStore = trustStore;
         this.permissionStore = permissionStore;
+        this.sharedFolderStore = sharedFolderStore;
         this.incomingDirectory = incomingDirectory;
         channelCoordinator.EnvelopeReceived += ChannelCoordinator_EnvelopeReceived;
     }
@@ -56,6 +61,12 @@ public sealed class VeyroFeatureService : IAsyncDisposable
 
     public event EventHandler<RemoteDeviceStateEventArgs>? RemoteDeviceStateChanged;
 
+    public event EventHandler<RemoteStylusEventArgs>? RemoteStylusReceived;
+
+    public event EventHandler<RemoteFilesEventArgs>? RemoteFilesReceived;
+
+    public IReadOnlyList<SharedFolder> SharedFolders => sharedFolderStore.Snapshot();
+
     public FeatureAccessPolicy GetPolicy(string deviceId, VeyroFeature feature) =>
         permissionStore.GetPolicy(deviceId, feature);
 
@@ -63,6 +74,10 @@ public sealed class VeyroFeatureService : IAsyncDisposable
         permissionStore.SetPolicy(deviceId, feature, policy);
 
     public void RemovePermissions(string deviceId) => permissionStore.RemoveDevice(deviceId);
+
+    public SharedFolder AddSharedFolder(string directoryPath) => sharedFolderStore.Add(directoryPath);
+
+    public bool RemoveSharedFolder(string folderId) => sharedFolderStore.Remove(folderId);
 
     public async Task SendFilesAsync(
         IReadOnlyCollection<string> filePaths,
@@ -306,6 +321,52 @@ public sealed class VeyroFeatureService : IAsyncDisposable
             new FeatureStatusEventArgs($"{Math.Min(notifications.Count, 20)} notificações sincronizadas"));
     }
 
+    public Task SendRemoteInputAsync(
+        RemoteInputEvent input,
+        IReadOnlyCollection<string> destinationDeviceIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        return SendAsync(
+            new VeyroMessage { RemoteInputEvent = input },
+            destinationDeviceIds,
+            cancellationToken);
+    }
+
+    public Task RequestRemoteFilesAsync(
+        string destinationDeviceId,
+        string parentDocumentId = "",
+        CancellationToken cancellationToken = default) =>
+        SendAsync(
+            new VeyroMessage
+            {
+                RemoteFileEvent = new RemoteFileEvent
+                {
+                    RequestId = Guid.NewGuid().ToString("D"),
+                    Action = RemoteFileAction.ListRequest,
+                    ParentDocumentId = parentDocumentId
+                }
+            },
+            [destinationDeviceId],
+            cancellationToken);
+
+    public Task RequestRemoteFileDownloadAsync(
+        string destinationDeviceId,
+        string documentId,
+        CancellationToken cancellationToken = default) =>
+        SendAsync(
+            new VeyroMessage
+            {
+                RemoteFileEvent = new RemoteFileEvent
+                {
+                    RequestId = Guid.NewGuid().ToString("D"),
+                    Action = RemoteFileAction.DownloadRequest,
+                    RequestedDocumentId = documentId
+                }
+            },
+            [destinationDeviceId],
+            cancellationToken);
+
     private async Task SendFileToDeviceAsync(
         string filePath,
         string destinationDeviceId,
@@ -442,6 +503,12 @@ public sealed class VeyroFeatureService : IAsyncDisposable
                     break;
                 case VeyroMessage.PayloadOneofCase.PresentationEvent:
                     await HandlePresentationAsync(origin, args.Message.PresentationEvent, lifetime.Token);
+                    break;
+                case VeyroMessage.PayloadOneofCase.RemoteInputEvent:
+                    await HandleRemoteInputAsync(origin, args.Message.RemoteInputEvent, lifetime.Token);
+                    break;
+                case VeyroMessage.PayloadOneofCase.RemoteFileEvent:
+                    await HandleRemoteFileAsync(origin, args.Message.RemoteFileEvent, lifetime.Token);
                     break;
                 default:
                     StatusChanged?.Invoke(
@@ -833,6 +900,124 @@ public sealed class VeyroFeatureService : IAsyncDisposable
         }
     }
 
+    private async Task HandleRemoteInputAsync(
+        TrustedDevice origin,
+        RemoteInputEvent input,
+        CancellationToken cancellationToken)
+    {
+        if (!await AuthorizeAsync(
+                origin,
+                VeyroFeature.RemoteInput,
+                "controlar mouse, teclado ou caneta deste computador",
+                cancellationToken))
+        {
+            return;
+        }
+
+        if (!TryConsumeInputRate(origin.DeviceId))
+        {
+            throw new InvalidDataException("A taxa de entrada remota excedeu 240 eventos por segundo.");
+        }
+
+        inputController.Apply(input);
+        if (input.InputCommand == RemoteInputCommand.StylusEvent)
+        {
+            RemoteStylusReceived?.Invoke(this, new RemoteStylusEventArgs(origin.DeviceId, input));
+        }
+    }
+
+    private async Task HandleRemoteFileAsync(
+        TrustedDevice origin,
+        RemoteFileEvent remoteFile,
+        CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParseExact(remoteFile.RequestId, "D", out _))
+        {
+            throw new InvalidDataException("A solicitação de pasta não possui um ID válido.");
+        }
+
+        switch (remoteFile.Action)
+        {
+            case RemoteFileAction.ListRequest:
+                if (!await AuthorizeAsync(
+                        origin,
+                        VeyroFeature.SharedFolders,
+                        "consultar as pastas compartilhadas",
+                        cancellationToken))
+                {
+                    await SendRemoteFileRejectionAsync(origin.DeviceId, remoteFile.RequestId, cancellationToken);
+                    return;
+                }
+
+                var entries = sharedFolderStore.List(remoteFile.ParentDocumentId);
+                var response = new RemoteFileEvent
+                {
+                    RequestId = remoteFile.RequestId,
+                    Action = RemoteFileAction.ListResponse,
+                    ParentDocumentId = remoteFile.ParentDocumentId
+                };
+                response.Entries.Add(entries.Select(entry => new RemoteFileEntry
+                {
+                    DocumentId = entry.DocumentId,
+                    DisplayName = entry.DisplayName,
+                    MimeType = entry.MimeType,
+                    SizeBytes = entry.SizeBytes,
+                    IsDirectory = entry.IsDirectory
+                }));
+                await SendAsync(
+                    new VeyroMessage { RemoteFileEvent = response },
+                    [origin.DeviceId],
+                    cancellationToken);
+                break;
+            case RemoteFileAction.ListResponse:
+                RemoteFilesReceived?.Invoke(
+                    this,
+                    new RemoteFilesEventArgs(
+                        origin.DeviceId,
+                        remoteFile.ParentDocumentId,
+                        remoteFile.Entries.ToArray()));
+                break;
+            case RemoteFileAction.DownloadRequest:
+                if (!await AuthorizeAsync(
+                        origin,
+                        VeyroFeature.SharedFolders,
+                        "baixar um arquivo de uma pasta compartilhada",
+                        cancellationToken))
+                {
+                    await SendRemoteFileRejectionAsync(origin.DeviceId, remoteFile.RequestId, cancellationToken);
+                    return;
+                }
+
+                var filePath = sharedFolderStore.ResolveFile(remoteFile.RequestedDocumentId);
+                await SendFilesAsync([filePath], [origin.DeviceId], cancellationToken);
+                break;
+            case RemoteFileAction.DownloadRejected:
+                StatusChanged?.Invoke(
+                    this,
+                    new FeatureStatusEventArgs($"Acesso à pasta recusado por {origin.DisplayName}"));
+                break;
+            default:
+                throw new InvalidDataException("A ação de pasta compartilhada não é suportada.");
+        }
+    }
+
+    private Task SendRemoteFileRejectionAsync(
+        string destinationDeviceId,
+        string requestId,
+        CancellationToken cancellationToken) =>
+        SendAsync(
+            new VeyroMessage
+            {
+                RemoteFileEvent = new RemoteFileEvent
+                {
+                    RequestId = requestId,
+                    Action = RemoteFileAction.DownloadRejected,
+                    ResultMessage = "not_authorized"
+                }
+            },
+            [destinationDeviceId],
+            cancellationToken);
+
     private async Task<bool> AuthorizeAsync(
         TrustedDevice origin,
         VeyroFeature feature,
@@ -959,6 +1144,22 @@ public sealed class VeyroFeatureService : IAsyncDisposable
             ? "Veyro"
             : value[..Math.Min(value.Length, maximumLength)];
 
+    private bool TryConsumeInputRate(string deviceId)
+    {
+        var window = inputRateWindows.GetOrAdd(deviceId, _ => new InputRateWindow());
+        lock (window)
+        {
+            var now = Stopwatch.GetTimestamp();
+            if (window.StartedAt == 0 || Stopwatch.GetElapsedTime(window.StartedAt, now) >= TimeSpan.FromSeconds(1))
+            {
+                window.StartedAt = now;
+                window.Count = 0;
+            }
+
+            return ++window.Count <= 240;
+        }
+    }
+
     private static void SendMediaKey(byte virtualKey)
     {
         keybd_event(virtualKey, 0, 0, UIntPtr.Zero);
@@ -1019,5 +1220,12 @@ public sealed class VeyroFeatureService : IAsyncDisposable
             Hash.Dispose();
             CryptographicOperations.ZeroMemory(ExpectedHash);
         }
+    }
+
+    private sealed class InputRateWindow
+    {
+        public long StartedAt { get; set; }
+
+        public int Count { get; set; }
     }
 }

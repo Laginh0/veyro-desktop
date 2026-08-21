@@ -364,3 +364,18 @@ Os Marcos 5 e 6 foram integrados ao Desktop com contratos autônomos em `desktop
 - A interface permite seleção múltipla de destinos e configuração `Bloquear`, `Perguntar` ou `Permitir` por recurso e dispositivo.
 
 Os detalhes técnicos e as matrizes de validação estão em `desktop/docs/VEYRO_DESKTOP_MILESTONE_5.md` e `desktop/docs/VEYRO_DESKTOP_MILESTONE_6.md`.
+
+## 18. Implementação do Marco 7 sem instalador
+
+O Marco 7 foi implementado sem instalador, MSIX ou assinatura de código.
+
+- Entrada remota exige permissão individual e possui validação e limite de taxa.
+- A caneta controla o ponteiro global e alimenta um quadro interno com espessura baseada em pressão.
+- Pastas compartilhadas são escolhidas explicitamente e persistidas com DPAPI.
+- Caminhos reais não trafegam; documentos usam tokens opacos e validação contra travessia e pontos de nova análise.
+- Navegação e download reutilizam mensagens cifradas e transferências verificadas.
+- Tokens de retomada ficam protegidos por DPAPI por 24 horas e são apagados na revogação.
+- O aplicativo continua na bandeja, pode iniciar oculto e oferece início opcional com o Windows.
+- A retomada do sistema reconstrói o grupo Wi-Fi Direct e preserva somente sessões autenticadas válidas.
+
+A injeção nativa de pressão em outros aplicativos Windows depende da capacidade restrita `inputInjectionBrokered`, disponível somente com empacotamento. Sem instalador, pressão e inclinação permanecem disponíveis no quadro Veyro enquanto o ponteiro global usa `SendInput`.

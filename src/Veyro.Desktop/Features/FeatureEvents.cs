@@ -63,3 +63,22 @@ public sealed class RemoteDeviceStateEventArgs(
 
     public TimeSpan? PingRoundTrip { get; } = pingRoundTrip;
 }
+
+public sealed class RemoteStylusEventArgs(string deviceId, RemoteInputEvent input) : EventArgs
+{
+    public string DeviceId { get; } = deviceId;
+
+    public RemoteInputEvent Input { get; } = input;
+}
+
+public sealed class RemoteFilesEventArgs(
+    string deviceId,
+    string parentDocumentId,
+    IReadOnlyList<RemoteFileEntry> entries) : EventArgs
+{
+    public string DeviceId { get; } = deviceId;
+
+    public string ParentDocumentId { get; } = parentDocumentId;
+
+    public IReadOnlyList<RemoteFileEntry> Entries { get; } = entries;
+}

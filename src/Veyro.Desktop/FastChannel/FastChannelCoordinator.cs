@@ -27,7 +27,7 @@ public sealed class FastChannelCoordinator : IAsyncDisposable
     private readonly TrustStore trustStore;
     private readonly BlePairingCoordinator bleCoordinator;
     private readonly WifiDirectManager wifiDirectManager;
-    private readonly FastChannelResumeRegistry resumeRegistry = new();
+    private readonly FastChannelResumeRegistry resumeRegistry;
     private readonly EnvelopeDeduplicator deduplicator = new();
     private readonly ConcurrentDictionary<string, SecureFastChannel> sessions = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, string> pendingSessionIds = new(StringComparer.Ordinal);
@@ -47,13 +47,15 @@ public sealed class FastChannelCoordinator : IAsyncDisposable
         TrustStore trustStore,
         BlePairingCoordinator bleCoordinator,
         WifiDirectManager wifiDirectManager,
-        VeyroCapability localCapabilities)
+        VeyroCapability localCapabilities,
+        FastChannelResumeRegistry resumeRegistry)
     {
         this.localIdentity = localIdentity;
         this.localIdentityKey = localIdentityKey;
         this.trustStore = trustStore;
         this.bleCoordinator = bleCoordinator;
         this.wifiDirectManager = wifiDirectManager;
+        this.resumeRegistry = resumeRegistry;
         localCertificate = VeyroTlsIdentity.CreateCertificate(localIdentity, localIdentityKey);
         var onExternalPower = System.Windows.Forms.SystemInformation.PowerStatus.PowerLineStatus ==
             System.Windows.Forms.PowerLineStatus.Online;
@@ -93,10 +95,30 @@ public sealed class FastChannelCoordinator : IAsyncDisposable
 
     public IReadOnlyList<GroupMemberState> GroupMembers => groupState.Snapshot();
 
+    public void InvalidateResumeState(string deviceId)
+    {
+        resumeRegistry.RemoveDevice(deviceId);
+        pendingSessionIds.TryRemove(deviceId, out _);
+        if (sessions.TryGetValue(deviceId, out var channel))
+        {
+            _ = channel.DisposeAsync();
+        }
+    }
+
     public void Start()
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         wifiDirectManager.Start();
+    }
+
+    public void RecoverAfterSystemResume()
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        resumeRegistry.RemoveExpired(DateTimeOffset.UtcNow);
+        wifiDirectManager.RebuildGroup();
+        StatusChanged?.Invoke(
+            this,
+            new FastChannelStatusEventArgs("Rádios reativados após a retomada do Windows"));
     }
 
     private async void WifiDirectManager_PeerConnected(object? sender, WifiDirectPeerConnection connection)
@@ -636,7 +658,7 @@ public sealed class FastChannelCoordinator : IAsyncDisposable
             StatusChanged?.Invoke(
                 this,
                 new FastChannelStatusEventArgs(
-                    "Canal rápido interrompido; retomada disponível por cinco minutos",
+                    "Canal rápido interrompido; retomada protegida disponível por 24 horas",
                     failure));
         }
     }

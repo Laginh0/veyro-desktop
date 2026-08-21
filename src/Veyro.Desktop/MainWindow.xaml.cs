@@ -23,6 +23,7 @@ public partial class MainWindow : Window
     private readonly FastChannelCoordinator fastChannelCoordinator;
     private readonly VeyroFeatureService featureService;
     private readonly string localDeviceId;
+    private readonly Dictionary<string, System.Windows.Point> stylusPositions = new(StringComparer.Ordinal);
     private bool permissionSelectionUpdating;
 
     public MainWindow(
@@ -69,6 +70,8 @@ public partial class MainWindow : Window
         featureService.AuthorizationRequested += FeatureService_AuthorizationRequested;
         featureService.ClipboardReceived += FeatureService_ClipboardReceived;
         featureService.RemoteDeviceStateChanged += FeatureService_RemoteDeviceStateChanged;
+        featureService.RemoteStylusReceived += FeatureService_RemoteStylusReceived;
+        featureService.RemoteFilesReceived += FeatureService_RemoteFilesReceived;
         PermissionFeatureCombo.ItemsSource = FeaturePermissionItem.All;
         PermissionPolicyCombo.ItemsSource = FeaturePolicyItem.All;
         SecureCommandCombo.ItemsSource = SafeCommandItem.All;
@@ -76,6 +79,7 @@ public partial class MainWindow : Window
         SecureCommandCombo.SelectedIndex = 0;
         RefreshNearbyDevices();
         RefreshTrustedDevices();
+        RefreshSharedFolders();
         RefreshGroupState(
             fastChannelCoordinator.GroupEpoch,
             fastChannelCoordinator.CoordinatorDeviceId,
@@ -221,6 +225,57 @@ public partial class MainWindow : Window
             }
         });
 
+    private void FeatureService_RemoteStylusReceived(object? sender, RemoteStylusEventArgs e) =>
+        _ = Dispatcher.InvokeAsync(() =>
+        {
+            var input = e.Input;
+            if (TabletCanvas.ActualWidth <= 0 || TabletCanvas.ActualHeight <= 0)
+            {
+                return;
+            }
+
+            var point = new System.Windows.Point(
+                Math.Clamp(input.NormalizedX, 0, 1) * TabletCanvas.ActualWidth,
+                Math.Clamp(input.NormalizedY, 0, 1) * TabletCanvas.ActualHeight);
+            if (input.StylusAction == StylusAction.StylusDown)
+            {
+                stylusPositions[e.DeviceId] = point;
+                return;
+            }
+
+            if (input.StylusAction == StylusAction.StylusMove &&
+                stylusPositions.TryGetValue(e.DeviceId, out var previous))
+            {
+                TabletCanvas.Children.Add(
+                    new System.Windows.Shapes.Line
+                    {
+                        X1 = previous.X,
+                        Y1 = previous.Y,
+                        X2 = point.X,
+                        Y2 = point.Y,
+                        Stroke = new SolidColorBrush(MediaColor.FromRgb(23, 58, 99)),
+                        StrokeThickness = 1.5 + Math.Clamp(input.Pressure, 0, 1) * 10,
+                        StrokeStartLineCap = PenLineCap.Round,
+                        StrokeEndLineCap = PenLineCap.Round
+                    });
+                stylusPositions[e.DeviceId] = point;
+            }
+
+            if (input.StylusAction is StylusAction.StylusUp or StylusAction.StylusCancel)
+            {
+                stylusPositions.Remove(e.DeviceId);
+            }
+        });
+
+    private void FeatureService_RemoteFilesReceived(object? sender, RemoteFilesEventArgs e) =>
+        _ = Dispatcher.InvokeAsync(() =>
+        {
+            RemoteFilesList.ItemsSource = e.Entries
+                .Select(entry => new RemoteFileItem(e.DeviceId, entry))
+                .ToArray();
+            FeatureStatusText.Text = $"{e.Entries.Count} item(ns) recebidos";
+        });
+
     private void PairingCoordinator_PinAvailable(object? sender, PairingPinEventArgs e) =>
         _ = Dispatcher.InvokeAsync(async () =>
         {
@@ -290,6 +345,7 @@ public partial class MainWindow : Window
         if (result == MessageBoxResult.Yes)
         {
             featureService.RemovePermissions(item.Device.DeviceId);
+            fastChannelCoordinator.InvalidateResumeState(item.Device.DeviceId);
             pairingCoordinator.Revoke(item.Device.DeviceId);
         }
     }
@@ -320,6 +376,8 @@ public partial class MainWindow : Window
             PermissionDeviceCombo.SelectedIndex = 0;
         }
     }
+
+    private void RefreshSharedFolders() => SharedFoldersList.ItemsSource = featureService.SharedFolders;
 
     private string[] SelectedDestinationIds() => FeatureDestinationsList.SelectedItems
         .Cast<FeatureDestinationItem>()
@@ -491,6 +549,94 @@ public partial class MainWindow : Window
         }
     }
 
+    private void AddSharedFolder_Click(object sender, RoutedEventArgs e)
+    {
+        using var dialog = new System.Windows.Forms.FolderBrowserDialog
+        {
+            Description = "Selecione uma pasta para compartilhar pelo Veyro",
+            UseDescriptionForTitle = true,
+            ShowNewFolderButton = false
+        };
+        if (dialog.ShowDialog() != System.Windows.Forms.DialogResult.OK)
+        {
+            return;
+        }
+
+        try
+        {
+            featureService.AddSharedFolder(dialog.SelectedPath);
+            RefreshSharedFolders();
+            FeatureStatusText.Text = "Pasta adicionada";
+        }
+        catch (Exception exception)
+        {
+            FeatureStatusText.Text = exception.Message;
+        }
+    }
+
+    private void RemoveSharedFolder_Click(object sender, RoutedEventArgs e)
+    {
+        if (SharedFoldersList.SelectedItem is SharedFolder folder &&
+            featureService.RemoveSharedFolder(folder.Id))
+        {
+            RefreshSharedFolders();
+            FeatureStatusText.Text = "Pasta removida";
+        }
+    }
+
+    private async void RequestRemoteFolders_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var destination = SelectedFeatureDestination();
+            await featureService.RequestRemoteFilesAsync(destination.DeviceId);
+            FeatureStatusText.Text = "Solicitação de pastas enviada";
+        }
+        catch (Exception exception)
+        {
+            FeatureStatusText.Text = exception.Message;
+        }
+    }
+
+    private void RemoteFilesList_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e) =>
+        OpenSelectedRemoteFile();
+
+    private void OpenRemoteFile_Click(object sender, RoutedEventArgs e) => OpenSelectedRemoteFile();
+
+    private async void OpenSelectedRemoteFile()
+    {
+        if (RemoteFilesList.SelectedItem is not RemoteFileItem item)
+        {
+            return;
+        }
+
+        try
+        {
+            if (item.Entry.IsDirectory)
+            {
+                await featureService.RequestRemoteFilesAsync(item.DeviceId, item.Entry.DocumentId);
+            }
+            else
+            {
+                await featureService.RequestRemoteFileDownloadAsync(item.DeviceId, item.Entry.DocumentId);
+            }
+        }
+        catch (Exception exception)
+        {
+            FeatureStatusText.Text = exception.Message;
+        }
+    }
+
+    private FeatureDestinationItem SelectedFeatureDestination() =>
+        FeatureDestinationsList.SelectedItems.Cast<FeatureDestinationItem>().FirstOrDefault()
+        ?? throw new InvalidOperationException("Selecione um destino conectado.");
+
+    private void ClearTablet_Click(object sender, RoutedEventArgs e)
+    {
+        TabletCanvas.Children.Clear();
+        stylusPositions.Clear();
+    }
+
     private void PermissionDeviceCombo_SelectionChanged(
         object sender,
         System.Windows.Controls.SelectionChangedEventArgs e) => RefreshPermissionPolicy();
@@ -565,8 +711,17 @@ public sealed record FeaturePermissionItem(VeyroFeature Feature, string DisplayN
         new(VeyroFeature.Notifications, "Notificações"),
         new(VeyroFeature.MediaControl, "Controle de mídia"),
         new(VeyroFeature.SecureCommands, "Comandos seguros"),
-        new(VeyroFeature.Presentation, "Apresentação")
+        new(VeyroFeature.Presentation, "Apresentação"),
+        new(VeyroFeature.RemoteInput, "Mouse, teclado e caneta"),
+        new(VeyroFeature.SharedFolders, "Pastas compartilhadas")
     ];
+}
+
+public sealed record RemoteFileItem(string DeviceId, RemoteFileEntry Entry)
+{
+    public string DisplayName => Entry.IsDirectory ? $"📁 {Entry.DisplayName}" : Entry.DisplayName;
+
+    public string Details => Entry.IsDirectory ? "Pasta" : $"{Entry.SizeBytes / 1024d:F1} KiB";
 }
 
 public sealed record FeaturePolicyItem(FeatureAccessPolicy Policy, string DisplayName)

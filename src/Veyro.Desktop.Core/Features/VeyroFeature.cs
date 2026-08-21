@@ -8,7 +8,9 @@ public enum VeyroFeature
     Notifications = 4,
     MediaControl = 5,
     SecureCommands = 6,
-    Presentation = 7
+    Presentation = 7,
+    RemoteInput = 8,
+    SharedFolders = 9
 }
 
 public enum FeatureAccessPolicy

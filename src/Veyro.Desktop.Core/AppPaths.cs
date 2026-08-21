@@ -11,6 +11,10 @@ public sealed record AppPaths(
 
     public string IncomingFilesDirectory => Path.Combine(DataDirectory, "Received Files");
 
+    public string SharedFoldersFile => Path.Combine(DataDirectory, "shared-folders.dat");
+
+    public string ResumeSessionsFile => Path.Combine(DataDirectory, "resume-sessions.dat");
+
     public static AppPaths CreateDefault()
     {
         var localData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
