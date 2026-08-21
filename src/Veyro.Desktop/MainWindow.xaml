@@ -43,7 +43,7 @@
 
                 <StackPanel Grid.Row="2">
                     <TextBlock Text="CANAL DIRETO SEGURO" Foreground="#7F9AB7" FontSize="10" FontWeight="Bold" />
-                    <TextBlock Text="Marco 4" Foreground="#BED0E3" Margin="0,5,0,0" TextWrapping="Wrap" />
+                    <TextBlock Text="Marcos 5 e 6" Foreground="#BED0E3" Margin="0,5,0,0" TextWrapping="Wrap" />
                 </StackPanel>
             </Grid>
         </Border>
@@ -169,6 +169,93 @@
                         </Grid>
                     </Border>
                 </Grid>
+
+                <Border Margin="0,18,0,0" Background="White" CornerRadius="14" Padding="22" BorderBrush="#E2E8F0" BorderThickness="1">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="260" />
+                            <ColumnDefinition Width="22" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="Destinos" FontSize="17" FontWeight="Bold" Foreground="{StaticResource VeyroInk}" />
+                            <TextBlock Text="Selecione um ou vários membros" Margin="0,4,0,10" Foreground="{StaticResource VeyroMuted}" />
+                            <ListBox x:Name="FeatureDestinationsList" SelectionMode="Extended" MinHeight="105" MaxHeight="170"
+                                     BorderThickness="0" Background="#F7F9FC">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="8,5">
+                                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" Foreground="{StaticResource VeyroInk}" />
+                                            <TextBlock Text="{Binding Details}" FontSize="11" Foreground="{StaticResource VeyroMuted}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Compartilhar e consultar" FontSize="17" FontWeight="Bold" Foreground="{StaticResource VeyroInk}" />
+                            <WrapPanel Margin="0,12,0,0">
+                                <Button Content="Enviar arquivos" Click="SendFiles_Click" Margin="0,0,8,8" />
+                                <Button Content="Enviar clipboard" Click="SendClipboard_Click" Margin="0,0,8,8" />
+                                <Button Content="Bateria e conexão" Click="SendDeviceState_Click" Margin="0,0,8,8" />
+                                <Button Content="Ping" Click="Ping_Click" Margin="0,0,8,8" />
+                            </WrapPanel>
+                            <Grid Margin="0,4,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="LinkTextBox" MinWidth="240" Padding="8" ToolTip="https://..." />
+                                <Button Grid.Column="1" Content="Enviar link" Click="SendLink_Click" Margin="8,0,0,0" />
+                            </Grid>
+                            <TextBlock Text="Integração do sistema" Margin="0,14,0,4" FontWeight="SemiBold" Foreground="{StaticResource VeyroInk}" />
+                            <WrapPanel>
+                                <Button Content="Notificações" Click="SyncNotifications_Click" Margin="0,0,8,8" />
+                                <Button Content="▶ Mídia" Click="SendMedia_Click" CommandParameter="Play" Margin="0,0,8,8" />
+                                <Button Content="⏸ Mídia" Click="SendMedia_Click" CommandParameter="Pause" Margin="0,0,8,8" />
+                                <Button Content="Próxima" Click="SendMedia_Click" CommandParameter="Next" Margin="0,0,8,8" />
+                                <Button Content="Apresentar" Click="SendPresentation_Click" CommandParameter="Start" Margin="0,0,8,8" />
+                                <Button Content="Encerrar" Click="SendPresentation_Click" CommandParameter="Stop" Margin="0,0,8,8" />
+                                <Button Content="Tela preta" Click="SendPresentation_Click" CommandParameter="Blackout" Margin="0,0,8,8" />
+                            </WrapPanel>
+                            <Grid Margin="0,2,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ComboBox x:Name="SecureCommandCombo" DisplayMemberPath="DisplayName" />
+                                <Button Grid.Column="1" Content="Enviar ação segura" Click="SendSecureCommand_Click" Margin="8,0,0,0" />
+                            </Grid>
+                            <TextBlock x:Name="FeatureStatusText" Text="Recursos prontos"
+                                       Margin="0,14,0,0" TextWrapping="Wrap" Foreground="#365675" />
+                            <TextBlock x:Name="RemoteStateText" Text="Nenhum estado remoto recebido"
+                                       Margin="0,5,0,0" FontSize="11" TextWrapping="Wrap" Foreground="{StaticResource VeyroMuted}" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <Border Margin="0,18,0,0" Background="White" CornerRadius="14" Padding="22" BorderBrush="#E2E8F0" BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock Text="Permissões contextuais" FontSize="17" FontWeight="Bold" Foreground="{StaticResource VeyroInk}" />
+                        <TextBlock Text="Regras independentes por dispositivo. “Perguntar” exige confirmação a cada ação recebida."
+                                   Margin="0,4,0,12" TextWrapping="Wrap" Foreground="{StaticResource VeyroMuted}" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="2*" />
+                                <ColumnDefinition Width="12" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="12" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <ComboBox x:Name="PermissionDeviceCombo" DisplayMemberPath="DisplayName"
+                                      SelectionChanged="PermissionDeviceCombo_SelectionChanged" />
+                            <ComboBox x:Name="PermissionFeatureCombo" Grid.Column="2" DisplayMemberPath="DisplayName"
+                                      SelectionChanged="PermissionFeatureCombo_SelectionChanged" />
+                            <ComboBox x:Name="PermissionPolicyCombo" Grid.Column="4" DisplayMemberPath="DisplayName"
+                                      SelectionChanged="PermissionPolicyCombo_SelectionChanged" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
 
                 <TextBlock x:Name="DataPathText" Margin="2,20,0,0" FontSize="11" Foreground="#7A8490" TextTrimming="CharacterEllipsis" />
             </StackPanel>

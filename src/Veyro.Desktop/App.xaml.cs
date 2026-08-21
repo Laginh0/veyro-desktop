@@ -7,6 +7,8 @@ using Veyro.Desktop.Core.Discovery;
 using Veyro.Desktop.Core.Trust;
 using Veyro.Desktop.Pairing;
 using Veyro.Desktop.FastChannel;
+using Veyro.Desktop.Features;
+using Veyro.Desktop.Core.Features;
 using Veyro.Desktop.WifiDirect;
 using Application = System.Windows.Application;
 
@@ -19,6 +21,7 @@ public partial class App : Application
     private BleDiscoveryService? bleDiscovery;
     private BlePairingCoordinator? pairingCoordinator;
     private FastChannelCoordinator? fastChannelCoordinator;
+    private VeyroFeatureService? featureService;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -36,9 +39,16 @@ public partial class App : Application
             var trustStore = new TrustStore(paths.TrustFile, protector);
             var capabilities = await WindowsTransportCapabilityProbe.ProbeAsync();
             var advertisedCapabilities = VeyroCapability.BleControl |
-                (capabilities.WiFiDirectApiAvailable
-                    ? VeyroCapability.WifiDirectData
-                    : VeyroCapability.None);
+                VeyroCapability.FileTransfer |
+                VeyroCapability.Clipboard |
+                VeyroCapability.Links |
+                VeyroCapability.BatteryStatus |
+                VeyroCapability.Ping;
+            if (capabilities.WiFiDirectApiAvailable)
+            {
+                advertisedCapabilities |=
+                    VeyroCapability.WifiDirectData | VeyroCapability.MultiDeviceRouting;
+            }
 
             bleDiscovery = new BleDiscoveryService(advertisedCapabilities);
             pairingCoordinator = new BlePairingCoordinator(
@@ -52,7 +62,14 @@ public partial class App : Application
                 identityKey,
                 trustStore,
                 pairingCoordinator,
-                wifiDirectManager);
+                wifiDirectManager,
+                advertisedCapabilities);
+            var featurePermissions = new FeaturePermissionStore(paths.FeaturePermissionsFile, protector);
+            featureService = new VeyroFeatureService(
+                fastChannelCoordinator,
+                trustStore,
+                featurePermissions,
+                paths.IncomingFilesDirectory);
 
             var window = new MainWindow(
                 identity,
@@ -61,8 +78,10 @@ public partial class App : Application
                 bleDiscovery,
                 pairingCoordinator,
                 trustStore,
-                fastChannelCoordinator);
+                fastChannelCoordinator,
+                featureService);
             trayIcon = new TrayIconService(window, Shutdown);
+            featureService.NotificationReceived += FeatureService_NotificationReceived;
             MainWindow = window;
             window.Show();
 
@@ -158,6 +177,12 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        if (featureService is not null)
+        {
+            featureService.NotificationReceived -= FeatureService_NotificationReceived;
+            featureService.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        }
+
         trayIcon?.Dispose();
         bleDiscovery?.Dispose();
         fastChannelCoordinator?.DisposeAsync().AsTask().GetAwaiter().GetResult();
@@ -166,4 +191,10 @@ public partial class App : Application
         logger?.Dispose();
         base.OnExit(e);
     }
+
+    private void FeatureService_NotificationReceived(object? sender, VeyroNotificationEventArgs e) =>
+        Dispatcher.Invoke(() =>
+            trayIcon?.ShowNotification(
+                string.IsNullOrWhiteSpace(e.AppName) ? e.Title : $"{e.AppName} · {e.Title}",
+                e.Body));
 }

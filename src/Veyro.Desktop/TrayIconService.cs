@@ -58,6 +58,15 @@ public sealed class TrayIconService : IDisposable
         window.Activate();
     }
 
+    public void ShowNotification(string title, string message)
+    {
+        notifyIcon.ShowBalloonTip(
+            5000,
+            string.IsNullOrWhiteSpace(title) ? "Veyro" : title[..Math.Min(title.Length, 63)],
+            string.IsNullOrWhiteSpace(message) ? "Nova notificação" : message[..Math.Min(message.Length, 255)],
+            Forms.ToolTipIcon.Info);
+    }
+
     public void Dispose()
     {
         notifyIcon.Visible = false;

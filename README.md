@@ -43,6 +43,8 @@ The development executable is generated at `src/Veyro.Desktop/bin/Debug/net10.0-
 - identity: `%LOCALAPPDATA%\Veyro\identity.dat`, protected for the current user with DPAPI;
 - identity key: `%LOCALAPPDATA%\Veyro\identity-key.dat`, protected with DPAPI;
 - Trust Hub: `%LOCALAPPDATA%\Veyro\trusted-devices.dat`, protected with DPAPI;
+- feature permissions: `%LOCALAPPDATA%\Veyro\feature-permissions.dat`, protected with DPAPI;
+- received files: `%LOCALAPPDATA%\Veyro\Received Files`;
 - logs: `%LOCALAPPDATA%\Veyro\logs`, stored as JSON Lines with sensitive-property sanitization.
 
 Never log clipboard content, SMS messages, contacts, notifications, PINs, keys, or payloads.
@@ -53,8 +55,9 @@ Never log clipboard content, SMS messages, contacts, notifications, PINs, keys, 
 - Milestone 2 on Windows: implemented and covered by automated tests;
 - Milestone 3 on Windows: Wi-Fi Direct group, BLE negotiation, mutual TLS, keepalive, and resumption implemented;
 - Milestone 4 on Windows: simultaneous secure sessions, signed logical addressing, forwarding, bounded deduplication, group membership, and deterministic coordinator election implemented;
+- Milestone 5 on Windows: encrypted multi-destination messages, bidirectional chunked files, manual clipboard, links, battery, connectivity, and application ping implemented;
+- Milestone 6 on Windows: notification bridge, media controls, restricted secure actions, presentation mode, and per-device contextual permissions implemented;
 - Android `0.1.9-alpha`: BLE contract, pairing, Wi-Fi Direct, and TLS channel implemented and covered by local tests;
 - physical Windows ↔ Android interoperability: ready for the joint acceptance test in `../mobile/docs/DESKTOP_INTEROPERABILITY.md`;
-- file delivery and other user-facing features: part of Milestone 5.
 
 While the product remains in alpha, each published update increments the patch: `0.1.0-alpha`, `0.1.1-alpha`, `0.1.2-alpha`, and so on.

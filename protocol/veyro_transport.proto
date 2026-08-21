@@ -26,6 +26,20 @@ message TransportEnvelope {
   bytes encrypted_payload = 14;
 }
 
+// Application payloads are encrypted independently for every selected
+// destination. A routing coordinator can inspect only envelope metadata.
+message EncryptedApplicationPayload {
+  bytes ephemeral_public_key_spki = 1;
+  repeated RecipientCiphertext recipients = 2;
+}
+
+message RecipientCiphertext {
+  string destination_device_id = 1;
+  bytes nonce = 2;
+  bytes ciphertext = 3;
+  bytes authentication_tag = 4;
+}
+
 enum TransportPayloadType {
   PAYLOAD_UNSPECIFIED = 0;
   APPLICATION_MESSAGE = 1;

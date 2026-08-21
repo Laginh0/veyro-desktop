@@ -7,6 +7,10 @@ public sealed record AppPaths(
     string TrustFile,
     string LogDirectory)
 {
+    public string FeaturePermissionsFile => Path.Combine(DataDirectory, "feature-permissions.dat");
+
+    public string IncomingFilesDirectory => Path.Combine(DataDirectory, "Received Files");
+
     public static AppPaths CreateDefault()
     {
         var localData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);

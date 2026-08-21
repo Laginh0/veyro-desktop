@@ -350,3 +350,17 @@ O Marco 4 foi implementado no Desktop após o estado descrito na seção anterio
 - A interface mostra quantidade de membros, coordenador e época atuais.
 
 A matriz de validação está descrita em `desktop/docs/VEYRO_DESKTOP_MILESTONE_4.md`, incluindo o cenário notebook + dois Androids. A diretriz de publicação mais recente do proprietário é manter o repositório separado `veyro-desktop` somente com o conteúdo de `desktop/`; nada fora dessa pasta pode fazer parte daquele repositório.
+
+## 17. Implementação dos Marcos 5 e 6
+
+Os Marcos 5 e 6 foram integrados ao Desktop com contratos autônomos em `desktop/protocol/` e sem alterações fora da pasta do repositório.
+
+- Mensagens de aplicação são cifradas para cada destinatário antes de entrarem no `TransportEnvelope`.
+- Arquivos usam oferta e aceite, blocos ordenados, arquivo temporário e verificação SHA-256.
+- Clipboard é manual; links aceitam apenas HTTP/HTTPS; bateria, conectividade e ping possuem ações próprias na interface.
+- Notificações, mídia, comandos restritos e apresentação utilizam integrações do Windows.
+- Permissões são contextuais, persistentes e independentes por aparelho confiável.
+- Ações de shell arbitrário não fazem parte da lista segura e são recusadas.
+- A interface permite seleção múltipla de destinos e configuração `Bloquear`, `Perguntar` ou `Permitir` por recurso e dispositivo.
+
+Os detalhes técnicos e as matrizes de validação estão em `desktop/docs/VEYRO_DESKTOP_MILESTONE_5.md` e `desktop/docs/VEYRO_DESKTOP_MILESTONE_6.md`.

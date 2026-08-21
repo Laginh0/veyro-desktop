@@ -5,9 +5,12 @@ using Veyro.Desktop.Core.Identity;
 using Veyro.Desktop.Bluetooth;
 using Veyro.Desktop.Core.Discovery;
 using Veyro.Desktop.Core.Groups;
+using Veyro.Desktop.Core.Features;
 using Veyro.Desktop.Core.Trust;
 using Veyro.Desktop.Pairing;
 using Veyro.Desktop.FastChannel;
+using Veyro.Desktop.Features;
+using Veyro.Protocol;
 using MediaColor = System.Windows.Media.Color;
 
 namespace Veyro.Desktop;
@@ -18,7 +21,9 @@ public partial class MainWindow : Window
     private readonly BlePairingCoordinator pairingCoordinator;
     private readonly TrustStore trustStore;
     private readonly FastChannelCoordinator fastChannelCoordinator;
+    private readonly VeyroFeatureService featureService;
     private readonly string localDeviceId;
+    private bool permissionSelectionUpdating;
 
     public MainWindow(
         LocalIdentity identity,
@@ -27,13 +32,15 @@ public partial class MainWindow : Window
         BleDiscoveryService discoveryService,
         BlePairingCoordinator pairingCoordinator,
         TrustStore trustStore,
-        FastChannelCoordinator fastChannelCoordinator)
+        FastChannelCoordinator fastChannelCoordinator,
+        VeyroFeatureService featureService)
     {
         InitializeComponent();
         this.discoveryService = discoveryService;
         this.pairingCoordinator = pairingCoordinator;
         this.trustStore = trustStore;
         this.fastChannelCoordinator = fastChannelCoordinator;
+        this.featureService = featureService;
         localDeviceId = identity.DeviceId;
 
         DeviceNameText.Text = identity.DisplayName;
@@ -58,6 +65,15 @@ public partial class MainWindow : Window
         pairingCoordinator.TrustChanged += PairingCoordinator_TrustChanged;
         fastChannelCoordinator.StatusChanged += FastChannelCoordinator_StatusChanged;
         fastChannelCoordinator.GroupStateChanged += FastChannelCoordinator_GroupStateChanged;
+        featureService.StatusChanged += FeatureService_StatusChanged;
+        featureService.AuthorizationRequested += FeatureService_AuthorizationRequested;
+        featureService.ClipboardReceived += FeatureService_ClipboardReceived;
+        featureService.RemoteDeviceStateChanged += FeatureService_RemoteDeviceStateChanged;
+        PermissionFeatureCombo.ItemsSource = FeaturePermissionItem.All;
+        PermissionPolicyCombo.ItemsSource = FeaturePolicyItem.All;
+        SecureCommandCombo.ItemsSource = SafeCommandItem.All;
+        PermissionFeatureCombo.SelectedIndex = 0;
+        SecureCommandCombo.SelectedIndex = 0;
         RefreshNearbyDevices();
         RefreshTrustedDevices();
         RefreshGroupState(
@@ -145,7 +161,65 @@ public partial class MainWindow : Window
             ? "este computador"
             : coordinator?.DisplayName ?? coordinatorDeviceId[..Math.Min(8, coordinatorDeviceId.Length)];
         GroupStatusText.Text = $"Grupo: {availableMembers} membro(s) · coordenador: {coordinatorName} · época {epoch}";
+        FeatureDestinationsList.ItemsSource = members
+            .Where(member => member.IsAvailable &&
+                !string.Equals(member.DeviceId, localDeviceId, StringComparison.Ordinal) &&
+                trustStore.FindActive(member.DeviceId) is not null)
+            .Select(member => new FeatureDestinationItem(member.DeviceId, member.DisplayName))
+            .ToArray();
     }
+
+    private void FeatureService_StatusChanged(object? sender, FeatureStatusEventArgs e) =>
+        _ = Dispatcher.InvokeAsync(() =>
+        {
+            FeatureStatusText.Text = e.Error is null ? e.Message : $"{e.Message}: {e.Error.Message}";
+            FeatureStatusText.Foreground = new SolidColorBrush(
+                e.Error is null ? MediaColor.FromRgb(54, 86, 117) : MediaColor.FromRgb(154, 52, 52));
+        });
+
+    private void FeatureService_AuthorizationRequested(object? sender, FeatureAuthorizationEventArgs e) =>
+        _ = Dispatcher.InvokeAsync(() =>
+        {
+            var result = System.Windows.MessageBox.Show(
+                $"{e.DeviceName} quer {e.Description}.\n\nPermitir esta ação?",
+                "Permissão contextual Veyro",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question,
+                MessageBoxResult.No);
+            e.Complete(result == MessageBoxResult.Yes);
+        });
+
+    private void FeatureService_ClipboardReceived(object? sender, ClipboardReceivedEventArgs e) =>
+        _ = Dispatcher.InvokeAsync(() =>
+        {
+            try
+            {
+                System.Windows.Clipboard.SetText(e.Text);
+                FeatureStatusText.Text = $"Clipboard recebido de {e.DeviceName}";
+            }
+            catch (Exception exception)
+            {
+                FeatureStatusText.Text = $"Não foi possível atualizar o clipboard: {exception.Message}";
+            }
+        });
+
+    private void FeatureService_RemoteDeviceStateChanged(object? sender, RemoteDeviceStateEventArgs e) =>
+        _ = Dispatcher.InvokeAsync(() =>
+        {
+            var deviceName = trustStore.FindActive(e.DeviceId)?.DisplayName ?? e.DeviceId;
+            if (e.Battery is not null)
+            {
+                RemoteStateText.Text = $"{deviceName}: bateria {e.Battery.ChargePercentage}%";
+            }
+            else if (e.Connectivity is not null)
+            {
+                RemoteStateText.Text = $"{deviceName}: conexão {e.Connectivity.ActiveTransport}";
+            }
+            else if (e.PingRoundTrip is not null)
+            {
+                RemoteStateText.Text = $"{deviceName}: ping {e.PingRoundTrip.Value.TotalMilliseconds:F0} ms";
+            }
+        });
 
     private void PairingCoordinator_PinAvailable(object? sender, PairingPinEventArgs e) =>
         _ = Dispatcher.InvokeAsync(async () =>
@@ -215,6 +289,7 @@ public partial class MainWindow : Window
             MessageBoxResult.No);
         if (result == MessageBoxResult.Yes)
         {
+            featureService.RemovePermissions(item.Device.DeviceId);
             pairingCoordinator.Revoke(item.Device.DeviceId);
         }
     }
@@ -234,10 +309,230 @@ public partial class MainWindow : Window
 
     private void RefreshTrustedDevices()
     {
-        TrustedDevicesList.ItemsSource = trustStore.Snapshot()
+        var trustedItems = trustStore.Snapshot()
             .Where(device => !device.IsRevoked)
             .Select(device => new TrustedDeviceItem(device))
             .ToArray();
+        TrustedDevicesList.ItemsSource = trustedItems;
+        PermissionDeviceCombo.ItemsSource = trustedItems;
+        if (trustedItems.Length > 0)
+        {
+            PermissionDeviceCombo.SelectedIndex = 0;
+        }
+    }
+
+    private string[] SelectedDestinationIds() => FeatureDestinationsList.SelectedItems
+        .Cast<FeatureDestinationItem>()
+        .Select(item => item.DeviceId)
+        .ToArray();
+
+    private string[] RequireDestinations()
+    {
+        var destinations = SelectedDestinationIds();
+        if (destinations.Length == 0)
+        {
+            throw new InvalidOperationException("Selecione ao menos um destino conectado.");
+        }
+
+        return destinations;
+    }
+
+    private async void SendFiles_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Multiselect = true,
+                Title = "Selecionar arquivos para enviar"
+            };
+            if (dialog.ShowDialog(this) == true)
+            {
+                await featureService.SendFilesAsync(dialog.FileNames, RequireDestinations());
+            }
+        }
+        catch (Exception exception)
+        {
+            FeatureStatusText.Text = exception.Message;
+        }
+    }
+
+    private async void SendClipboard_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (!System.Windows.Clipboard.ContainsText())
+            {
+                throw new InvalidOperationException("O clipboard não contém texto.");
+            }
+
+            await featureService.SendClipboardAsync(
+                System.Windows.Clipboard.GetText(),
+                RequireDestinations());
+            FeatureStatusText.Text = "Clipboard enviado";
+        }
+        catch (Exception exception)
+        {
+            FeatureStatusText.Text = exception.Message;
+        }
+    }
+
+    private async void SendLink_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            await featureService.SendLinkAsync(LinkTextBox.Text, RequireDestinations());
+            FeatureStatusText.Text = "Link enviado";
+        }
+        catch (Exception exception)
+        {
+            FeatureStatusText.Text = exception.Message;
+        }
+    }
+
+    private async void SendDeviceState_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var destinations = RequireDestinations();
+            await featureService.SendBatteryStatusAsync(destinations);
+            await featureService.SendConnectivityStatusAsync(destinations);
+            FeatureStatusText.Text = "Estado do computador enviado";
+        }
+        catch (Exception exception)
+        {
+            FeatureStatusText.Text = exception.Message;
+        }
+    }
+
+    private async void Ping_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var destination = FeatureDestinationsList.SelectedItems
+                .Cast<FeatureDestinationItem>()
+                .FirstOrDefault()
+                ?? throw new InvalidOperationException("Selecione um destino para o ping.");
+            await featureService.PingAsync(destination.DeviceId);
+            FeatureStatusText.Text = "Ping enviado";
+        }
+        catch (Exception exception)
+        {
+            FeatureStatusText.Text = exception.Message;
+        }
+    }
+
+    private async void SyncNotifications_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            await featureService.SyncWindowsNotificationsAsync(RequireDestinations());
+        }
+        catch (Exception exception)
+        {
+            FeatureStatusText.Text = exception.Message;
+        }
+    }
+
+    private async void SendMedia_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var command = (sender as System.Windows.Controls.Button)?.CommandParameter as string;
+            var category = command switch
+            {
+                "Play" => MediaEventCategory.CmdPlay,
+                "Pause" => MediaEventCategory.CmdPause,
+                "Next" => MediaEventCategory.CmdNext,
+                _ => throw new InvalidOperationException("Comando de mídia inválido.")
+            };
+            await featureService.SendMediaCommandAsync(category, RequireDestinations());
+            FeatureStatusText.Text = "Comando de mídia enviado";
+        }
+        catch (Exception exception)
+        {
+            FeatureStatusText.Text = exception.Message;
+        }
+    }
+
+    private async void SendPresentation_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var command = (sender as System.Windows.Controls.Button)?.CommandParameter as string;
+            var action = command switch
+            {
+                "Start" => PresentationAction.PresentationStart,
+                "Stop" => PresentationAction.PresentationStop,
+                "Blackout" => PresentationAction.PresentationBlackoutOn,
+                _ => throw new InvalidOperationException("Ação de apresentação inválida.")
+            };
+            await featureService.SendPresentationActionAsync(action, RequireDestinations());
+            FeatureStatusText.Text = "Ação de apresentação enviada";
+        }
+        catch (Exception exception)
+        {
+            FeatureStatusText.Text = exception.Message;
+        }
+    }
+
+    private async void SendSecureCommand_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var command = SecureCommandCombo.SelectedItem as SafeCommandItem
+                ?? throw new InvalidOperationException("Selecione uma ação segura.");
+            await featureService.SendSafeCommandAsync(command.Command, RequireDestinations());
+            FeatureStatusText.Text = "Ação segura enviada";
+        }
+        catch (Exception exception)
+        {
+            FeatureStatusText.Text = exception.Message;
+        }
+    }
+
+    private void PermissionDeviceCombo_SelectionChanged(
+        object sender,
+        System.Windows.Controls.SelectionChangedEventArgs e) => RefreshPermissionPolicy();
+
+    private void PermissionFeatureCombo_SelectionChanged(
+        object sender,
+        System.Windows.Controls.SelectionChangedEventArgs e) => RefreshPermissionPolicy();
+
+    private void RefreshPermissionPolicy()
+    {
+        if (PermissionDeviceCombo.SelectedItem is not TrustedDeviceItem device ||
+            PermissionFeatureCombo.SelectedItem is not FeaturePermissionItem feature)
+        {
+            return;
+        }
+
+        permissionSelectionUpdating = true;
+        try
+        {
+            var current = featureService.GetPolicy(device.Device.DeviceId, feature.Feature);
+            PermissionPolicyCombo.SelectedItem = FeaturePolicyItem.All.Single(item => item.Policy == current);
+        }
+        finally
+        {
+            permissionSelectionUpdating = false;
+        }
+    }
+
+    private void PermissionPolicyCombo_SelectionChanged(
+        object sender,
+        System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (permissionSelectionUpdating ||
+            PermissionDeviceCombo.SelectedItem is not TrustedDeviceItem device ||
+            PermissionFeatureCombo.SelectedItem is not FeaturePermissionItem feature ||
+            PermissionPolicyCombo.SelectedItem is not FeaturePolicyItem policy)
+        {
+            return;
+        }
+
+        featureService.SetPolicy(device.Device.DeviceId, feature.Feature, policy.Policy);
+        FeatureStatusText.Text = $"Permissão de {feature.DisplayName} atualizada para {device.DisplayName}";
     }
 }
 
@@ -253,4 +548,44 @@ public sealed record TrustedDeviceItem(TrustedDevice Device)
     public string DisplayName => Device.DisplayName;
 
     public string Details => $"ID {Device.DeviceId} · confiável";
+}
+
+public sealed record FeatureDestinationItem(string DeviceId, string DisplayName)
+{
+    public string Details => $"ID {DeviceId[..Math.Min(8, DeviceId.Length)]}";
+}
+
+public sealed record FeaturePermissionItem(VeyroFeature Feature, string DisplayName)
+{
+    public static IReadOnlyList<FeaturePermissionItem> All { get; } =
+    [
+        new(VeyroFeature.Files, "Arquivos"),
+        new(VeyroFeature.Clipboard, "Clipboard"),
+        new(VeyroFeature.Links, "Links"),
+        new(VeyroFeature.Notifications, "Notificações"),
+        new(VeyroFeature.MediaControl, "Controle de mídia"),
+        new(VeyroFeature.SecureCommands, "Comandos seguros"),
+        new(VeyroFeature.Presentation, "Apresentação")
+    ];
+}
+
+public sealed record FeaturePolicyItem(FeatureAccessPolicy Policy, string DisplayName)
+{
+    public static IReadOnlyList<FeaturePolicyItem> All { get; } =
+    [
+        new(FeatureAccessPolicy.Disabled, "Bloquear"),
+        new(FeatureAccessPolicy.Ask, "Perguntar"),
+        new(FeatureAccessPolicy.Allow, "Permitir")
+    ];
+}
+
+public sealed record SafeCommandItem(string Command, string DisplayName)
+{
+    public static IReadOnlyList<SafeCommandItem> All { get; } =
+    [
+        new("lock-workstation", "Bloquear dispositivo"),
+        new("ms-settings:bluetooth", "Abrir Bluetooth"),
+        new("ms-settings:network-wifi", "Abrir Wi-Fi"),
+        new("ms-settings:display", "Abrir tela")
+    ];
 }

@@ -3,12 +3,14 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
+using System.Security.Cryptography;
 using Google.Protobuf;
 using Veyro.Desktop.Core.Discovery;
 using Veyro.Desktop.Core.Groups;
 using Veyro.Desktop.Core.Identity;
 using Veyro.Desktop.Core.Protocol;
 using Veyro.Desktop.Core.Routing;
+using Veyro.Desktop.Core.Security;
 using Veyro.Desktop.Core.Transport;
 using Veyro.Desktop.Core.Trust;
 using Veyro.Desktop.Pairing;
@@ -44,7 +46,8 @@ public sealed class FastChannelCoordinator : IAsyncDisposable
         LocalIdentityKey localIdentityKey,
         TrustStore trustStore,
         BlePairingCoordinator bleCoordinator,
-        WifiDirectManager wifiDirectManager)
+        WifiDirectManager wifiDirectManager,
+        VeyroCapability localCapabilities)
     {
         this.localIdentity = localIdentity;
         this.localIdentityKey = localIdentityKey;
@@ -57,10 +60,10 @@ public sealed class FastChannelCoordinator : IAsyncDisposable
         var localMember = new GroupMemberState(
             localIdentity.DeviceId,
             localIdentity.DisplayName,
-            VeyroCapability.BleControl |
-            VeyroCapability.WifiDirectData |
-            VeyroCapability.MultiDeviceRouting,
-            CoordinatorEligible: true,
+            localCapabilities,
+            CoordinatorEligible:
+                localCapabilities.HasFlag(VeyroCapability.WifiDirectData) &&
+                localCapabilities.HasFlag(VeyroCapability.MultiDeviceRouting),
             OnExternalPower: onExternalPower,
             BatteryPercent: GetBatteryPercent(),
             StabilitySeconds: 0,
@@ -188,6 +191,46 @@ public sealed class FastChannelCoordinator : IAsyncDisposable
             destinationDeviceIds,
             authorizedBroadcast);
         await SendEnvelopeAsync(envelope, cancellationToken);
+    }
+
+    public async Task SendApplicationMessageAsync(
+        Veyro.Protocol.VeyroMessage message,
+        IReadOnlyCollection<string> destinationDeviceIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        ArgumentNullException.ThrowIfNull(destinationDeviceIds);
+        if (!string.Equals(
+                message.ProtocolVersion,
+                ProtocolContract.AndroidFeatureProtocolVersion,
+                StringComparison.Ordinal) ||
+            message.PayloadCase == Veyro.Protocol.VeyroMessage.PayloadOneofCase.None)
+        {
+            throw new InvalidDataException("A mensagem de aplicação não pertence ao contrato Veyro atual.");
+        }
+
+        var destinations = destinationDeviceIds
+            .Where(deviceId => !string.IsNullOrWhiteSpace(deviceId))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (destinations.Length == 0)
+        {
+            throw new ArgumentException("Selecione ao menos um dispositivo de destino.", nameof(destinationDeviceIds));
+        }
+
+        var recipients = destinations
+            .Select(deviceId => trustStore.FindActive(deviceId)
+                ?? throw new InvalidOperationException($"O destino {deviceId} não está ativo no Trust Hub."))
+            .ToArray();
+        var encryptedPayload = ApplicationPayloadCipher.Encrypt(
+            message.ToByteArray(),
+            localIdentity.DeviceId,
+            recipients);
+        await SendApplicationEnvelopeAsync(
+            encryptedPayload,
+            destinations,
+            authorizedBroadcast: false,
+            cancellationToken);
     }
 
     private void EnsureListener(IPAddress localAddress)
@@ -366,7 +409,29 @@ public sealed class FastChannelCoordinator : IAsyncDisposable
                 }
                 else
                 {
-                    EnvelopeReceived?.Invoke(this, new RoutedEnvelopeEventArgs(envelope));
+                    var plaintext = ApplicationPayloadCipher.Decrypt(
+                        envelope.EncryptedPayload.Span,
+                        envelope.OriginDeviceId,
+                        localIdentity.DeviceId,
+                        localIdentityKey);
+                    try
+                    {
+                        var message = Veyro.Protocol.VeyroMessage.Parser.ParseFrom(plaintext);
+                        if (!string.Equals(
+                                message.ProtocolVersion,
+                                ProtocolContract.AndroidFeatureProtocolVersion,
+                                StringComparison.Ordinal) ||
+                            message.PayloadCase == Veyro.Protocol.VeyroMessage.PayloadOneofCase.None)
+                        {
+                            throw new InvalidDataException("A mensagem de aplicação recebida é incompatível.");
+                        }
+
+                        EnvelopeReceived?.Invoke(this, new RoutedEnvelopeEventArgs(envelope, message));
+                    }
+                    finally
+                    {
+                        CryptographicOperations.ZeroMemory(plaintext);
+                    }
                 }
             }
 

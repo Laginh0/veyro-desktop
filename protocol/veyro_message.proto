@@ -26,6 +26,7 @@ message VeyroMessage {
     PresentationEvent presentation_event = 21;
     RemoteFileEvent remote_file_event = 22;
     ClipboardSyncEvent clipboard_sync_event = 23;
+    FileTransferEvent file_transfer_event = 24;
   }
 }
 
@@ -259,4 +260,26 @@ message ClipboardSyncEvent {
   string source_device_id = 2;
   string text = 3;
   int64 event_timestamp = 4;
+}
+
+message FileTransferEvent {
+  string transfer_id = 1;
+  FileTransferAction action = 2;
+  string file_name = 3;
+  string mime_type = 4;
+  int64 size_bytes = 5;
+  uint32 chunk_index = 6;
+  bytes chunk_data = 7;
+  bytes sha256 = 8;
+  string result_message = 9;
+}
+
+enum FileTransferAction {
+  FILE_TRANSFER_ACTION_UNKNOWN = 0;
+  FILE_OFFER = 1;
+  FILE_ACCEPT = 2;
+  FILE_REJECT = 3;
+  FILE_CHUNK = 4;
+  FILE_COMPLETE = 5;
+  FILE_CANCEL = 6;
 }
