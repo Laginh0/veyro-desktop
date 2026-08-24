@@ -16,6 +16,12 @@ member joins or leaves. That snapshot contains the active member identifiers, di
 public identity keys required for end-to-end routing. Android exposes those members as routed
 devices in the normal connected-device selector.
 
+The Desktop also keeps a FIFO association between authenticated BLE identities and incoming
+Wi-Fi Direct links. A fast-channel offer includes a signed `target_device_id`; GATT notifications
+may be visible to every subscribed Android, but only the addressed Android accepts that offer.
+An already connected member ignores offers targeting another device, so joining Android B cannot
+replace Android A's fast channel. The Desktop accepts up to three direct peers in the group.
+
 ## Transport policy
 
 - Android + Android, without a Desktop hub: Google Nearby Connections.
@@ -44,6 +50,8 @@ duplicate Nearby sessions are explicitly disconnected before the star is exposed
 - The Desktop router forwards a targeted envelope only to the requested Android and preserves the
   ciphertext while decrementing the hop limit.
 - The topology contract round-trips its epoch, coordinator and member identity keys.
+- Distinct sequential Wi-Fi links claim distinct authenticated BLE identities.
+- A fast-channel offer is rejected when its signed target differs from the receiving device.
 - The transport policy enables Nearby only when no Desktop Wi-Fi session remains.
 
 ## Three-device hardware test

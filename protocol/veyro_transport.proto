@@ -137,6 +137,9 @@ message FastChannelOffer {
   string tls_alpn = 5;
   bytes resume_token = 6;
   bytes signature = 7;
+  // Required when a GATT notification can be observed by multiple trusted members.
+  // Non-target devices must ignore the offer without disturbing their active channel.
+  string target_device_id = 8;
 }
 
 message FastChannelAnswer {

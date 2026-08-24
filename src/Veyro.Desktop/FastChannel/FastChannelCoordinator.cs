@@ -31,6 +31,7 @@ public sealed class FastChannelCoordinator : IAsyncDisposable
     private readonly EnvelopeDeduplicator deduplicator = new();
     private readonly ConcurrentDictionary<string, SecureFastChannel> sessions = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, string> pendingSessionIds = new(StringComparer.Ordinal);
+    private readonly AuthenticatedPeerQueue authenticatedWifiCandidates = new();
     private readonly CancellationTokenSource lifetime = new();
     private readonly X509Certificate2 localCertificate;
     private readonly GroupStateManager groupState;
@@ -79,6 +80,7 @@ public sealed class FastChannelCoordinator : IAsyncDisposable
         wifiDirectManager.StatusChanged += WifiDirectManager_StatusChanged;
         bleCoordinator.FastChannelOfferReceived += BleCoordinator_FastChannelOfferReceived;
         bleCoordinator.FastChannelAnswerReceived += BleCoordinator_FastChannelAnswerReceived;
+        bleCoordinator.TrustedPeerActivated += BleCoordinator_TrustedPeerActivated;
     }
 
     public event EventHandler<FastChannelStatusEventArgs>? StatusChanged;
@@ -126,8 +128,12 @@ public sealed class FastChannelCoordinator : IAsyncDisposable
         try
         {
             wifiDirectLink = connection;
-            var remoteDeviceId = bleCoordinator.ActiveTrustedDeviceId
-                ?? throw new InvalidOperationException("O enlace Wi-Fi Direct não possui um par autenticado no BLE.");
+            var remoteDeviceId = ClaimAuthenticatedWifiCandidate()
+                ?? throw new InvalidOperationException("O enlace Wi-Fi Direct não possui uma identidade BLE pendente.");
+            if (sessions.Count + pendingSessionIds.Count >= MaximumDirectPeers)
+            {
+                throw new InvalidOperationException("O grupo Veyro atingiu o limite de membros diretos.");
+            }
             var trustedDevice = trustStore.FindActive(remoteDeviceId)
                 ?? throw new InvalidOperationException("O par Wi-Fi Direct não está ativo no Trust Hub.");
             var localAddress = ParseDirectAddress(connection.LocalAddress);
@@ -141,7 +147,8 @@ public sealed class FastChannelCoordinator : IAsyncDisposable
                 localIdentityKey,
                 Veyro.Protocol.FastChannelRole.GroupOwner,
                 port,
-                resumeState);
+                resumeState,
+                trustedDevice.DeviceId);
             pendingSessionIds[trustedDevice.DeviceId] = offer.SessionId;
             await bleCoordinator.SendFastChannelOfferAsync(offer);
             StatusChanged?.Invoke(this, new FastChannelStatusEventArgs("Oferta do canal rápido enviada pelo BLE"));
@@ -152,13 +159,29 @@ public sealed class FastChannelCoordinator : IAsyncDisposable
         }
     }
 
+    private void BleCoordinator_TrustedPeerActivated(
+        object? sender,
+        TrustedPeerActivatedEventArgs args)
+    {
+        if (sessions.ContainsKey(args.DeviceId) || pendingSessionIds.ContainsKey(args.DeviceId) ||
+            !authenticatedWifiCandidates.Enqueue(args.DeviceId))
+        {
+            return;
+        }
+    }
+
+    private string? ClaimAuthenticatedWifiCandidate() => authenticatedWifiCandidates.Claim(
+        deviceId => !sessions.ContainsKey(deviceId) && !pendingSessionIds.ContainsKey(deviceId) &&
+            trustStore.FindActive(deviceId) is not null);
+
     private async void BleCoordinator_FastChannelOfferReceived(object? sender, FastChannelOfferEventArgs args)
     {
         try
         {
             var offer = args.Offer;
             var trustedDevice = trustStore.FindActive(offer.DeviceId);
-            if (trustedDevice is null || !FastChannelOfferSigner.Validate(offer, trustedDevice))
+            if (trustedDevice is null ||
+                !FastChannelOfferSigner.Validate(offer, trustedDevice, localIdentity.DeviceId))
             {
                 await bleCoordinator.SendFastChannelAnswerAsync(offer.SessionId, false, "unauthorized");
                 throw new InvalidOperationException("A oferta do canal rápido não pertence a um dispositivo confiável.");
@@ -765,6 +788,7 @@ public sealed class FastChannelCoordinator : IAsyncDisposable
         wifiDirectManager.StatusChanged -= WifiDirectManager_StatusChanged;
         bleCoordinator.FastChannelOfferReceived -= BleCoordinator_FastChannelOfferReceived;
         bleCoordinator.FastChannelAnswerReceived -= BleCoordinator_FastChannelAnswerReceived;
+        bleCoordinator.TrustedPeerActivated -= BleCoordinator_TrustedPeerActivated;
         await lifetime.CancelAsync();
         listener?.Stop();
         wifiDirectManager.Dispose();
@@ -777,4 +801,6 @@ public sealed class FastChannelCoordinator : IAsyncDisposable
         localCertificate.Dispose();
         lifetime.Dispose();
     }
+
+    private const int MaximumDirectPeers = 3;
 }

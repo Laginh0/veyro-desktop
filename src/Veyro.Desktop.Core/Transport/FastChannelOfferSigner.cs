@@ -15,11 +15,13 @@ public static class FastChannelOfferSigner
         LocalIdentityKey identityKey,
         Veyro.Protocol.FastChannelRole role,
         ushort tcpPort,
-        FastChannelResumeState resumeState)
+        FastChannelResumeState resumeState,
+        string targetDeviceId)
     {
         ArgumentNullException.ThrowIfNull(identity);
         ArgumentNullException.ThrowIfNull(identityKey);
         ArgumentNullException.ThrowIfNull(resumeState);
+        ArgumentException.ThrowIfNullOrWhiteSpace(targetDeviceId);
         if (role == Veyro.Protocol.FastChannelRole.Unspecified || tcpPort == 0)
         {
             throw new ArgumentOutOfRangeException(nameof(role));
@@ -32,7 +34,8 @@ public static class FastChannelOfferSigner
             Role = role,
             TcpPort = tcpPort,
             TlsAlpn = "veyro/1",
-            ResumeToken = Google.Protobuf.ByteString.CopyFrom(resumeState.ResumeToken)
+            ResumeToken = Google.Protobuf.ByteString.CopyFrom(resumeState.ResumeToken),
+            TargetDeviceId = targetDeviceId
         };
         using var key = ECDsa.Create();
         key.ImportPkcs8PrivateKey(identityKey.PrivateKeyPkcs8, out _);
@@ -44,7 +47,10 @@ public static class FastChannelOfferSigner
         return offer;
     }
 
-    public static bool Validate(Veyro.Protocol.FastChannelOffer offer, TrustedDevice trustedDevice)
+    public static bool Validate(
+        Veyro.Protocol.FastChannelOffer offer,
+        TrustedDevice trustedDevice,
+        string? expectedTargetDeviceId = null)
     {
         ArgumentNullException.ThrowIfNull(offer);
         ArgumentNullException.ThrowIfNull(trustedDevice);
@@ -54,6 +60,9 @@ public static class FastChannelOfferSigner
             offer.Role == Veyro.Protocol.FastChannelRole.Unspecified ||
             offer.TcpPort is 0 or > ushort.MaxValue ||
             !string.Equals(offer.TlsAlpn, "veyro/1", StringComparison.Ordinal) ||
+            string.IsNullOrWhiteSpace(offer.TargetDeviceId) ||
+            (expectedTargetDeviceId is not null &&
+                !string.Equals(offer.TargetDeviceId, expectedTargetDeviceId, StringComparison.Ordinal)) ||
             offer.ResumeToken.Length != 32)
         {
             return false;
@@ -85,6 +94,7 @@ public static class FastChannelOfferSigner
         WriteUInt32(stream, offer.TcpPort);
         Write(stream, offer.TlsAlpn);
         Write(stream, offer.ResumeToken.Span);
+        Write(stream, offer.TargetDeviceId);
         return stream.ToArray();
     }
 

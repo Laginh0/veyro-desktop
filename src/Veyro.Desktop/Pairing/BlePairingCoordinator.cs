@@ -47,6 +47,8 @@ public sealed class BlePairingCoordinator : IDisposable
 
     public event EventHandler<FastChannelAnswerEventArgs>? FastChannelAnswerReceived;
 
+    public event EventHandler<TrustedPeerActivatedEventArgs>? TrustedPeerActivated;
+
     public string? ActiveTrustedDeviceId { get; private set; }
 
     public async Task StartAsync()
@@ -320,6 +322,7 @@ public sealed class BlePairingCoordinator : IDisposable
 
         trustStore.MarkSeen(trustedDevice.DeviceId);
         ActiveTrustedDeviceId = trustedDevice.DeviceId;
+        TrustedPeerActivated?.Invoke(this, new TrustedPeerActivatedEventArgs(trustedDevice.DeviceId));
         TrustChanged?.Invoke(this, EventArgs.Empty);
         StatusChanged?.Invoke(this, new PairingStatusEventArgs($"{trustedDevice.DisplayName} autenticado novamente"));
     }
@@ -334,6 +337,7 @@ public sealed class BlePairingCoordinator : IDisposable
         var trustedDevice = pairingSession.CreateTrustedDevice();
         trustStore.Trust(trustedDevice);
         ActiveTrustedDeviceId = trustedDevice.DeviceId;
+        TrustedPeerActivated?.Invoke(this, new TrustedPeerActivatedEventArgs(trustedDevice.DeviceId));
         TrustChanged?.Invoke(this, EventArgs.Empty);
         StatusChanged?.Invoke(this, new PairingStatusEventArgs($"{trustedDevice.DisplayName} adicionado ao Trust Hub"));
         ResetSession();

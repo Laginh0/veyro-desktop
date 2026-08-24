@@ -128,15 +128,21 @@ public sealed class SecureFastChannelTests
             key,
             Veyro.Protocol.FastChannelRole.GroupOwner,
             45678,
-            resumeState);
+            resumeState,
+            "2222222222222222");
 
         var encoded = PairingMessageCodec.EncodeFastChannelOffer(offer);
         var tampered = offer.Clone();
         tampered.TcpPort = 45679;
+        var retargeted = offer.Clone();
+        retargeted.TargetDeviceId = "3333333333333333";
 
         Assert.True(FastChannelOfferSigner.Validate(offer, trusted));
+        Assert.True(FastChannelOfferSigner.Validate(offer, trusted, "2222222222222222"));
+        Assert.False(FastChannelOfferSigner.Validate(offer, trusted, "3333333333333333"));
         Assert.InRange(encoded.Length, 1, PairingMessageCodec.MaximumBleControlPacketSize);
         Assert.False(FastChannelOfferSigner.Validate(tampered, trusted));
+        Assert.False(FastChannelOfferSigner.Validate(retargeted, trusted));
     }
 
     private static async Task<(SecureFastChannel First, SecureFastChannel Second)> ConnectPairAsync(
