@@ -65,6 +65,8 @@ public sealed class VeyroFeatureService : IAsyncDisposable
 
     public event EventHandler<RemoteFilesEventArgs>? RemoteFilesReceived;
 
+    public event EventHandler<FileTransferProgressEventArgs>? FileTransferProgressChanged;
+
     public IReadOnlyList<SharedFolder> SharedFolders => sharedFolderStore.Snapshot();
 
     public FeatureAccessPolicy GetPolicy(string deviceId, VeyroFeature feature) =>
@@ -379,6 +381,16 @@ public sealed class VeyroFeatureService : IAsyncDisposable
         }
 
         var transferId = Guid.NewGuid().ToString("D");
+        var startedAt = Stopwatch.GetTimestamp();
+        ReportFileTransfer(
+            transferId,
+            destinationDeviceId,
+            file.Name,
+            FileTransferDirection.Sending,
+            FileTransferStage.Preparing,
+            0,
+            file.Length,
+            startedAt);
         byte[] hash;
         await using (var hashStream = file.OpenRead())
         {
@@ -387,6 +399,7 @@ public sealed class VeyroFeatureService : IAsyncDisposable
 
         var response = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         outgoingFileOffers[OfferKey(transferId, destinationDeviceId)] = response;
+        long sentBytes = 0;
         try
         {
             await SendFileEventAsync(
@@ -402,6 +415,15 @@ public sealed class VeyroFeatureService : IAsyncDisposable
                 destinationDeviceId,
                 cancellationToken);
             StatusChanged?.Invoke(this, new FeatureStatusEventArgs($"Aguardando aceite de {file.Name}"));
+            ReportFileTransfer(
+                transferId,
+                destinationDeviceId,
+                file.Name,
+                FileTransferDirection.Sending,
+                FileTransferStage.AwaitingAcceptance,
+                0,
+                file.Length,
+                startedAt);
             if (!await response.Task.WaitAsync(TimeSpan.FromMinutes(2), cancellationToken))
             {
                 throw new InvalidOperationException("O destino recusou o arquivo.");
@@ -423,6 +445,16 @@ public sealed class VeyroFeatureService : IAsyncDisposable
                     },
                     destinationDeviceId,
                     cancellationToken);
+                sentBytes += read;
+                ReportFileTransfer(
+                    transferId,
+                    destinationDeviceId,
+                    file.Name,
+                    FileTransferDirection.Sending,
+                    FileTransferStage.Transferring,
+                    sentBytes,
+                    file.Length,
+                    startedAt);
             }
 
             await SendFileEventAsync(
@@ -435,8 +467,17 @@ public sealed class VeyroFeatureService : IAsyncDisposable
                 destinationDeviceId,
                 cancellationToken);
             StatusChanged?.Invoke(this, new FeatureStatusEventArgs($"Arquivo enviado: {file.Name}"));
+            ReportFileTransfer(
+                transferId,
+                destinationDeviceId,
+                file.Name,
+                FileTransferDirection.Sending,
+                FileTransferStage.Completed,
+                file.Length,
+                file.Length,
+                startedAt);
         }
-        catch
+        catch (Exception exception)
         {
             try
             {
@@ -452,6 +493,17 @@ public sealed class VeyroFeatureService : IAsyncDisposable
             catch
             {
             }
+
+            ReportFileTransfer(
+                transferId,
+                destinationDeviceId,
+                file.Name,
+                FileTransferDirection.Sending,
+                exception is OperationCanceledException ? FileTransferStage.Cancelled : FileTransferStage.Failed,
+                sentBytes,
+                file.Length,
+                startedAt,
+                exception);
 
             throw;
         }
@@ -609,7 +661,8 @@ public sealed class VeyroFeatureService : IAsyncDisposable
             offer.SizeBytes,
             offer.Sha256.ToByteArray(),
             new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, FileChunkSize, true),
-            IncrementalHash.CreateHash(HashAlgorithmName.SHA256));
+            IncrementalHash.CreateHash(HashAlgorithmName.SHA256),
+            Stopwatch.GetTimestamp());
         if (!incomingFiles.TryAdd(OfferKey(offer.TransferId, origin.DeviceId), state))
         {
             await state.DisposeAsync();
@@ -625,6 +678,15 @@ public sealed class VeyroFeatureService : IAsyncDisposable
             origin.DeviceId,
             cancellationToken);
         StatusChanged?.Invoke(this, new FeatureStatusEventArgs($"Recebendo {safeName}"));
+        ReportFileTransfer(
+            offer.TransferId,
+            origin.DeviceId,
+            safeName,
+            FileTransferDirection.Receiving,
+            FileTransferStage.Transferring,
+            0,
+            offer.SizeBytes,
+            state.StartedAt);
     }
 
     private async Task WriteIncomingChunkAsync(
@@ -641,6 +703,17 @@ public sealed class VeyroFeatureService : IAsyncDisposable
         {
             if (state is not null && incomingFiles.TryRemove(key, out _))
             {
+                var exception = new InvalidDataException("O bloco recebido está fora de ordem ou excede o tamanho anunciado.");
+                ReportFileTransfer(
+                    state.TransferId,
+                    state.OriginDeviceId,
+                    Path.GetFileName(state.FinalPath),
+                    FileTransferDirection.Receiving,
+                    FileTransferStage.Failed,
+                    state.ReceivedBytes,
+                    state.ExpectedSize,
+                    state.StartedAt,
+                    exception);
                 await state.DisposeAsync();
                 File.Delete(state.TemporaryPath);
             }
@@ -652,6 +725,15 @@ public sealed class VeyroFeatureService : IAsyncDisposable
         state.Hash.AppendData(chunk.ChunkData.Span);
         state.NextChunkIndex++;
         state.ReceivedBytes += chunk.ChunkData.Length;
+        ReportFileTransfer(
+            state.TransferId,
+            state.OriginDeviceId,
+            Path.GetFileName(state.FinalPath),
+            FileTransferDirection.Receiving,
+            FileTransferStage.Transferring,
+            state.ReceivedBytes,
+            state.ExpectedSize,
+            state.StartedAt);
     }
 
     private async Task CompleteIncomingFileAsync(
@@ -682,9 +764,28 @@ public sealed class VeyroFeatureService : IAsyncDisposable
             StatusChanged?.Invoke(
                 this,
                 new FeatureStatusEventArgs($"Arquivo recebido: {Path.GetFileName(state.FinalPath)}"));
+            ReportFileTransfer(
+                state.TransferId,
+                state.OriginDeviceId,
+                Path.GetFileName(state.FinalPath),
+                FileTransferDirection.Receiving,
+                FileTransferStage.Completed,
+                state.ExpectedSize,
+                state.ExpectedSize,
+                state.StartedAt);
         }
-        catch
+        catch (Exception exception)
         {
+            ReportFileTransfer(
+                state.TransferId,
+                state.OriginDeviceId,
+                Path.GetFileName(state.FinalPath),
+                FileTransferDirection.Receiving,
+                exception is OperationCanceledException ? FileTransferStage.Cancelled : FileTransferStage.Failed,
+                state.ReceivedBytes,
+                state.ExpectedSize,
+                state.StartedAt,
+                exception);
             File.Delete(state.TemporaryPath);
             throw;
         }
@@ -699,6 +800,15 @@ public sealed class VeyroFeatureService : IAsyncDisposable
     {
         if (incomingFiles.TryRemove(OfferKey(transferId, originDeviceId), out var state))
         {
+            ReportFileTransfer(
+                state.TransferId,
+                state.OriginDeviceId,
+                Path.GetFileName(state.FinalPath),
+                FileTransferDirection.Receiving,
+                FileTransferStage.Cancelled,
+                state.ReceivedBytes,
+                state.ExpectedSize,
+                state.StartedAt);
             await state.DisposeAsync();
             File.Delete(state.TemporaryPath);
         }
@@ -1125,6 +1235,30 @@ public sealed class VeyroFeatureService : IAsyncDisposable
 
     private static string OfferKey(string transferId, string deviceId) => $"{transferId}:{deviceId}";
 
+    private void ReportFileTransfer(
+        string transferId,
+        string deviceId,
+        string fileName,
+        FileTransferDirection direction,
+        FileTransferStage stage,
+        long transferredBytes,
+        long totalBytes,
+        long startedAt,
+        Exception? error = null) =>
+        FileTransferProgressChanged?.Invoke(
+            this,
+            new FileTransferProgressEventArgs(
+                transferId,
+                deviceId,
+                trustStore.FindActive(deviceId)?.DisplayName ?? deviceId[..Math.Min(deviceId.Length, 8)],
+                fileName,
+                direction,
+                stage,
+                transferredBytes,
+                totalBytes,
+                Stopwatch.GetElapsedTime(startedAt),
+                error));
+
     private static string InferMimeType(string extension) => extension.ToLowerInvariant() switch
     {
         ".txt" => "text/plain",
@@ -1201,7 +1335,8 @@ public sealed class VeyroFeatureService : IAsyncDisposable
         long expectedSize,
         byte[] expectedHash,
         FileStream stream,
-        IncrementalHash hash) : IAsyncDisposable
+        IncrementalHash hash,
+        long startedAt) : IAsyncDisposable
     {
         public string OriginDeviceId { get; } = originDeviceId;
         public string TransferId { get; } = transferId;
@@ -1211,6 +1346,7 @@ public sealed class VeyroFeatureService : IAsyncDisposable
         public byte[] ExpectedHash { get; } = expectedHash;
         public FileStream Stream { get; } = stream;
         public IncrementalHash Hash { get; } = hash;
+        public long StartedAt { get; } = startedAt;
         public uint NextChunkIndex { get; set; }
         public long ReceivedBytes { get; set; }
 

@@ -19,7 +19,10 @@ public static class TransportEnvelopeSigner
         using var key = ECDsa.Create();
         key.ImportPkcs8PrivateKey(identityKey.PrivateKeyPkcs8, out _);
         envelope.OriginAuthentication = ByteString.CopyFrom(
-            key.SignData(EncodeImmutableFields(envelope), HashAlgorithmName.SHA256));
+            key.SignData(
+                EncodeImmutableFields(envelope),
+                HashAlgorithmName.SHA256,
+                DSASignatureFormat.IeeeP1363FixedFieldConcatenation));
     }
 
     public static bool Verify(TransportEnvelope envelope, TrustedDevice trustedDevice)
@@ -40,7 +43,8 @@ public static class TransportEnvelopeSigner
             return key.VerifyData(
                 EncodeImmutableFields(envelope),
                 envelope.OriginAuthentication.Span,
-                HashAlgorithmName.SHA256);
+                HashAlgorithmName.SHA256,
+                DSASignatureFormat.IeeeP1363FixedFieldConcatenation);
         }
         catch (Exception exception) when (exception is CryptographicException or FormatException)
         {

@@ -100,7 +100,11 @@ public sealed class SecureFastChannelTests
             state.ResumeToken,
             now.AddMinutes(4),
             out var resumed));
-        Assert.Equal(state, resumed);
+        var renewed = Assert.IsType<FastChannelResumeState>(resumed);
+        Assert.Equal(state.SessionId, renewed.SessionId);
+        Assert.Equal(state.RemoteDeviceId, renewed.RemoteDeviceId);
+        Assert.Equal(state.ResumeToken, renewed.ResumeToken);
+        Assert.Equal(now.AddMinutes(9), renewed.ExpiresAt);
         Assert.True(registry.UpdateSequence(state.SessionId, 10));
         Assert.False(registry.UpdateSequence(state.SessionId, 9));
         Assert.False(registry.TryResume(
@@ -109,7 +113,7 @@ public sealed class SecureFastChannelTests
             state.ResumeToken,
             now,
             out _));
-        Assert.Equal(1, registry.RemoveExpired(now.AddMinutes(6)));
+        Assert.Equal(1, registry.RemoveExpired(now.AddMinutes(10)));
     }
 
     [Fact]

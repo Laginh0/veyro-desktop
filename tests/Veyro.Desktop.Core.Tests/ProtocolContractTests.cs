@@ -25,6 +25,33 @@ public sealed class ProtocolContractTests
     }
 
     [Fact]
+    public void Android_star_topology_roundTrips_with_member_identity_keys()
+    {
+        var message = new VeyroMessage
+        {
+            ProtocolVersion = ProtocolContract.AndroidFeatureProtocolVersion,
+            GroupTopologyEvent = new GroupTopologyEvent
+            {
+                Epoch = 7,
+                CoordinatorDeviceId = "desktop"
+            }
+        };
+        message.GroupTopologyEvent.Members.Add(new GroupTopologyMember
+        {
+            DeviceId = "android-a",
+            DisplayName = "Phone A",
+            IdentityPublicKeySpki = ByteString.CopyFrom(new byte[] { 1, 2, 3 }),
+            IsAvailable = true
+        });
+
+        var decoded = VeyroMessage.Parser.ParseFrom(message.ToByteArray());
+
+        Assert.Equal(VeyroMessage.PayloadOneofCase.GroupTopologyEvent, decoded.PayloadCase);
+        Assert.Equal((ulong)7, decoded.GroupTopologyEvent.Epoch);
+        Assert.Equal("android-a", decoded.GroupTopologyEvent.Members.Single().DeviceId);
+    }
+
+    [Fact]
     public void Unknown_major_version_is_rejected_safely()
     {
         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();

@@ -33,6 +33,8 @@ public sealed class BlePairingCoordinator : IDisposable
         this.trustStore = trustStore;
         server.PacketReceived += Server_PacketReceived;
         client.PacketReceived += Client_PacketReceived;
+        client.ChannelRestored += Client_ChannelRestored;
+        client.ChannelRestoreFailed += Client_ChannelRestoreFailed;
     }
 
     public event EventHandler<PairingPinEventArgs>? PinAvailable;
@@ -68,17 +70,42 @@ public sealed class BlePairingCoordinator : IDisposable
             await client.ConnectAsync(device.BluetoothAddress);
             reply = client.SendAsync;
 
-            reconnectChallenge = TrustedPeerAuthenticator.CreateChallenge();
-            await reply(PairingMessageCodec.EncodeReconnectChallenge(localIdentity.DeviceId, reconnectChallenge));
-
             pairingSession = PairingSession.Create(localIdentity, localIdentityKey, capabilities);
             await reply(PairingMessageCodec.EncodeHello(pairingSession.LocalHello));
-            StatusChanged?.Invoke(this, new PairingStatusEventArgs("Solicitação de pareamento enviada"));
+            StatusChanged?.Invoke(this, new PairingStatusEventArgs("Solicitação enviada; confirme o PIN"));
         }
         catch (Exception exception)
         {
             ResetSession(clearReply: true);
             StatusChanged?.Invoke(this, new PairingStatusEventArgs("Falha ao iniciar o pareamento", exception));
+            throw;
+        }
+        finally
+        {
+            packetGate.Release();
+        }
+    }
+
+    public async Task BeginReconnectAsync(DiscoveredDevice device)
+    {
+        ArgumentNullException.ThrowIfNull(device);
+        ObjectDisposedException.ThrowIf(disposed, this);
+
+        await packetGate.WaitAsync();
+        try
+        {
+            ActiveTrustedDeviceId = null;
+            ResetSession(clearReply: true);
+            StatusChanged?.Invoke(this, new PairingStatusEventArgs("Reconectando ao dispositivo confiável…"));
+            await client.ConnectAsync(device.BluetoothAddress);
+            reply = client.SendAsync;
+            reconnectChallenge = TrustedPeerAuthenticator.CreateChallenge();
+            await reply(PairingMessageCodec.EncodeReconnectChallenge(localIdentity.DeviceId, reconnectChallenge));
+        }
+        catch (Exception exception)
+        {
+            ResetSession(clearReply: true);
+            StatusChanged?.Invoke(this, new PairingStatusEventArgs("Falha na reconexão BLE", exception));
             throw;
         }
         finally
@@ -142,6 +169,34 @@ public sealed class BlePairingCoordinator : IDisposable
 
     private async void Client_PacketReceived(object? sender, BleControlPacketEventArgs args) =>
         await ProcessPacketSafelyAsync(args.Packet, client.SendAsync);
+
+    private async void Client_ChannelRestored(object? sender, EventArgs args)
+    {
+        await packetGate.WaitAsync();
+        try
+        {
+            if (!trustStore.Snapshot().Any(device => !device.IsRevoked))
+            {
+                return;
+            }
+
+            reply = client.SendAsync;
+            reconnectChallenge = TrustedPeerAuthenticator.CreateChallenge();
+            await reply(PairingMessageCodec.EncodeReconnectChallenge(localIdentity.DeviceId, reconnectChallenge));
+            StatusChanged?.Invoke(this, new PairingStatusEventArgs("Canal BLE restaurado; validando a confiança"));
+        }
+        catch (Exception exception)
+        {
+            StatusChanged?.Invoke(this, new PairingStatusEventArgs("Falha ao restaurar o canal BLE", exception));
+        }
+        finally
+        {
+            packetGate.Release();
+        }
+    }
+
+    private void Client_ChannelRestoreFailed(object? sender, Exception exception) =>
+        StatusChanged?.Invoke(this, new PairingStatusEventArgs("Falha ao redescobrir o canal BLE", exception));
 
     private async Task ProcessPacketSafelyAsync(byte[] bytes, Func<byte[], Task> response)
     {
@@ -240,6 +295,11 @@ public sealed class BlePairingCoordinator : IDisposable
         var challengeBytes = challenge.Challenge.ToByteArray();
         var signature = TrustedPeerAuthenticator.Sign(localIdentityKey, localIdentity.DeviceId, challengeBytes);
         await response(PairingMessageCodec.EncodeReconnectProof(localIdentity.DeviceId, challengeBytes, signature));
+        if (reconnectChallenge is null && trustStore.Snapshot().Any(device => !device.IsRevoked))
+        {
+            reconnectChallenge = TrustedPeerAuthenticator.CreateChallenge();
+            await response(PairingMessageCodec.EncodeReconnectChallenge(localIdentity.DeviceId, reconnectChallenge));
+        }
     }
 
     private void ProcessReconnectProof(Veyro.Protocol.ReconnectProof proof)
@@ -323,6 +383,8 @@ public sealed class BlePairingCoordinator : IDisposable
         disposed = true;
         server.PacketReceived -= Server_PacketReceived;
         client.PacketReceived -= Client_PacketReceived;
+        client.ChannelRestored -= Client_ChannelRestored;
+        client.ChannelRestoreFailed -= Client_ChannelRestoreFailed;
         ResetSession(clearReply: true);
         client.Dispose();
         server.Dispose();

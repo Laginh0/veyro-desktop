@@ -1,6 +1,6 @@
 # Veyro Desktop
 
-Current version: **0.1.2-alpha**.
+Current version: **0.1.3-alpha**.
 
 Windows application for the Veyro ecosystem. The codebase uses C#/.NET 10 and WPF with WinRT Bluetooth Low Energy and Wi-Fi Direct APIs. Desktop advertises its presence, searches for Veyro peers, provides PIN-protected pairing and a Trust Hub, and establishes an authenticated fast channel over Wi-Fi Direct.
 

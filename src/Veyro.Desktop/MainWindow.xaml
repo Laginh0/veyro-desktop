@@ -1,334 +1,342 @@
 <Window x:Class="Veyro.Desktop.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Veyro"
-        Width="940"
-        Height="760"
-        MinWidth="780"
-        MinHeight="640"
-        WindowStartupLocation="CenterScreen"
-        Background="{StaticResource VeyroSurface}">
+        Title="Veyro" Width="1220" Height="820" MinWidth="760" MinHeight="620"
+        WindowStartupLocation="CenterScreen" Background="{DynamicResource CanvasBrush}"
+        Loaded="MainWindow_Loaded"
+        PreviewKeyDown="MainWindow_PreviewKeyDown"
+        SizeChanged="MainWindow_SizeChanged" AllowDrop="True"
+        PreviewDragEnter="Window_PreviewDragEnter" PreviewDragOver="Window_PreviewDragOver"
+        PreviewDragLeave="Window_PreviewDragLeave" PreviewDrop="Window_PreviewDrop">
+    <Window.Resources>
+        <DataTemplate x:Key="DeviceDestinationTemplate">
+            <Grid Margin="13,11">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="44" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <Border Width="38" Height="38" CornerRadius="11" Background="{DynamicResource PrimarySoftBrush}" VerticalAlignment="Center">
+                    <TextBlock Text="&#xE7F8;" FontFamily="Segoe Fluent Icons" FontSize="17" Foreground="{DynamicResource PrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <StackPanel Grid.Column="1" Margin="11,0" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding Details}" Style="{StaticResource Caption}" Margin="0,2,0,0" />
+                </StackPanel>
+                <Border Grid.Column="2" Background="{DynamicResource ConnectedSoftBrush}" CornerRadius="10" Padding="8,4" VerticalAlignment="Center">
+                    <TextBlock Text="Disponível" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource ConnectedBrush}" />
+                </Border>
+            </Grid>
+        </DataTemplate>
+        <DataTemplate x:Key="NearbyDeviceTemplate">
+            <Grid Margin="14,12">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="44" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <Border Width="40" Height="40" CornerRadius="20" Background="{DynamicResource SurfaceMutedBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                    <TextBlock Text="&#xE8CC;" FontFamily="Segoe Fluent Icons" FontSize="18" Foreground="{DynamicResource TextSecondaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <StackPanel Grid.Column="1" Margin="12,0" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding Details}" Style="{StaticResource Caption}" Margin="0,3,0,0" />
+                </StackPanel>
+                <TextBlock Grid.Column="2" Text="&#xE76C;" FontFamily="Segoe Fluent Icons" Foreground="{DynamicResource TextTertiaryBrush}" VerticalAlignment="Center" Margin="8" />
+            </Grid>
+        </DataTemplate>
+        <DataTemplate x:Key="TransferTemplate">
+            <Border Style="{StaticResource InsetCard}" Margin="0,0,0,10">
+                <Grid>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="42" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <Border Width="36" Height="36" CornerRadius="10" Background="{DynamicResource PrimarySoftBrush}" VerticalAlignment="Top">
+                        <TextBlock Text="&#xE8A5;" FontFamily="Segoe Fluent Icons" Foreground="{DynamicResource PrimaryBrush}" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="10,0,12,0">
+                        <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding RouteText}" Style="{StaticResource Caption}" Margin="0,3,0,0" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" HorizontalAlignment="Right">
+                        <TextBlock Text="{Binding StatusText}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryBrush}" HorizontalAlignment="Right" />
+                        <TextBlock Text="{Binding PercentText}" Style="{StaticResource Caption}" HorizontalAlignment="Right" Margin="0,3,0,0" />
+                    </StackPanel>
+                    <ProgressBar Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Margin="10,11,0,0" Maximum="100" Value="{Binding Progress}" />
+                    <TextBlock Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding DetailText}" Style="{StaticResource Caption}" Margin="10,7,0,0" />
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </Window.Resources>
+
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="230" />
+            <ColumnDefinition x:Name="SidebarColumn" Width="220" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
-        <Border Grid.Column="0" Background="#13253A">
-            <Grid Margin="24">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
-
-                <StackPanel Orientation="Horizontal">
-                    <Border Width="48" Height="48" Background="White" CornerRadius="14">
-                        <Image Source="Assets/veyro_logo_color.png" Margin="8" Stretch="Uniform" />
+        <!-- Compact product navigation -->
+        <Border Grid.Column="0" Background="{DynamicResource SidebarBrush}">
+            <Grid>
+                <Grid.RowDefinitions><RowDefinition Height="84" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                <Grid Margin="18,18,12,12">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="44" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <Border Width="40" Height="40" Background="White" CornerRadius="12">
+                        <Image Source="Assets/veyro_logo_color.png" Margin="7" Stretch="Uniform" />
                     </Border>
-                    <StackPanel Margin="12,2,0,0">
-                        <TextBlock Text="VEYRO" Foreground="White" FontSize="21" FontWeight="Bold" />
-                        <TextBlock Text="DESKTOP" Foreground="#9FB8D4" FontSize="10" FontWeight="SemiBold" />
+                    <StackPanel x:Name="BrandText" Grid.Column="1" Margin="11,2,0,0">
+                        <TextBlock Text="V E Y R O" Foreground="White" FontSize="17" FontWeight="Bold" />
+                        <TextBlock Text="DIRECT SHARE" Foreground="#71809A" FontSize="9" FontWeight="SemiBold" Margin="0,2,0,0" />
                     </StackPanel>
+                </Grid>
+                <StackPanel Grid.Row="1">
+                    <TextBlock x:Name="NavigationLabel" Text="NAVEGAÇÃO" Foreground="#68758A" FontSize="10" FontWeight="SemiBold" Margin="21,14,0,8" />
+                    <RadioButton x:Name="NearbyNavigation" GroupName="Navigation" Content="Por perto" Tag="&#xE707;" Style="{StaticResource NavButton}" IsChecked="True" Checked="Navigation_Checked" />
+                    <RadioButton x:Name="TransfersNavigation" GroupName="Navigation" Content="Transferências" Tag="&#xE898;" Style="{StaticResource NavButton}" Checked="Navigation_Checked" />
+                    <RadioButton x:Name="DevicesNavigation" GroupName="Navigation" Content="Dispositivos" Tag="&#xE8CC;" Style="{StaticResource NavButton}" Checked="Navigation_Checked" />
+                    <RadioButton x:Name="SettingsNavigation" GroupName="Navigation" Content="Ajustes" Tag="&#xE713;" Style="{StaticResource NavButton}" Checked="Navigation_Checked" />
                 </StackPanel>
-
-                <StackPanel Grid.Row="1" Margin="0,46,0,0">
-                    <Border Background="#294766" CornerRadius="9" Padding="14,11">
-                        <TextBlock Text="Visão geral" Foreground="White" FontWeight="SemiBold" />
-                    </Border>
-                    <TextBlock Text="Dispositivos" Foreground="#7791AD" Margin="14,21,0,0" />
-                    <TextBlock Text="Trust Hub" Foreground="#7791AD" Margin="14,21,0,0" />
-                    <TextBlock Text="Configurações" Foreground="#7791AD" Margin="14,21,0,0" />
-                </StackPanel>
-
-                <StackPanel Grid.Row="2">
-                    <TextBlock Text="CANAL DIRETO SEGURO" Foreground="#7F9AB7" FontSize="10" FontWeight="Bold" />
-                    <TextBlock Text="Marco 7" Foreground="#BED0E3" Margin="0,5,0,0" TextWrapping="Wrap" />
-                </StackPanel>
+                <Border Grid.Row="2" Margin="16,12,16,18" Padding="12" Background="#121F33" CornerRadius="12" BorderBrush="#263753" BorderThickness="1">
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="20" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Grid Width="10" Height="10" VerticalAlignment="Top" Margin="1,4,0,0">
+                            <Ellipse Fill="{DynamicResource ConnectedBrush}" />
+                            <Ellipse Stroke="#7624A06B" StrokeThickness="4" />
+                        </Grid>
+                        <StackPanel x:Name="SidebarStatusText" Grid.Column="1" Margin="7,0,0,0">
+                            <TextBlock Text="Veyro ativo" Foreground="#E7EDF7" FontSize="11" FontWeight="SemiBold" />
+                            <TextBlock Text="Visível por perto" Foreground="#7D8DA7" FontSize="10" Margin="0,2,0,0" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
             </Grid>
         </Border>
 
-        <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
-            <StackPanel Margin="42,36,42,32">
-                <TextBlock Text="Seu ecossistema, por perto." FontSize="30" FontWeight="Bold" Foreground="{StaticResource VeyroInk}" />
-                <TextBlock Text="O Veyro prepara conexões diretas entre este notebook e seus dispositivos, sem depender de nuvem ou roteador."
-                           Margin="0,8,0,0" MaxWidth="640" HorizontalAlignment="Left"
-                           FontSize="15" LineHeight="23" TextWrapping="Wrap" Foreground="{StaticResource VeyroMuted}" />
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions><RowDefinition Height="64" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+            <!-- Global status bar keeps connectivity legible on every page. -->
+            <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
+                <Grid Margin="28,0">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Ellipse Width="8" Height="8" Fill="{DynamicResource ConnectedBrush}" Margin="0,0,9,0" />
+                        <TextBlock x:Name="GlobalConnectionText" Text="Procurando dispositivos próximos" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <Border Grid.Column="1" Background="{DynamicResource ConnectedSoftBrush}" CornerRadius="12" Padding="10,5" VerticalAlignment="Center" Margin="10,0">
+                        <TextBlock Text="P2P · sem internet" Foreground="{DynamicResource ConnectedBrush}" FontSize="10" FontWeight="SemiBold" />
+                    </Border>
+                    <Button Grid.Column="2" Style="{StaticResource GhostButton}" Content="&#xE921;" FontFamily="Segoe Fluent Icons" ToolTip="Minimizar para a bandeja" Click="HideToTray_Click" />
+                </Grid>
+            </Border>
 
-                <Border Margin="0,28,0,0" Background="White" CornerRadius="14" Padding="24" BorderBrush="#E2E8F0" BorderThickness="1">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel>
-                            <TextBlock Text="Este computador" FontSize="12" FontWeight="Bold" Foreground="{StaticResource VeyroBlue}" />
-                            <TextBlock x:Name="DeviceNameText" Margin="0,5,0,0" FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource VeyroInk}" />
-                            <TextBlock x:Name="DeviceIdText" Margin="0,5,0,0" FontFamily="Consolas" Foreground="{StaticResource VeyroMuted}" />
-                        </StackPanel>
-                        <Border Grid.Column="1" Background="#E8F6ED" CornerRadius="14" Padding="13,7" VerticalAlignment="Center">
-                            <TextBlock Text="Identidade protegida" Foreground="#24633B" FontWeight="SemiBold" />
+            <Grid Grid.Row="1">
+                <!-- HOME / NEARBY -->
+                <ScrollViewer x:Name="NearbyPage" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="34,30,34,42">
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Por perto" Style="{StaticResource PageTitle}" />
+                                <TextBlock Text="Escolha um dispositivo e envie. A conexão acontece diretamente entre vocês." Style="{StaticResource BodySecondary}" Margin="0,6,0,0" />
+                            </StackPanel>
+                            <Button Grid.Column="1" Content="Procurar novamente" Style="{StaticResource SecondaryButton}" VerticalAlignment="Center" Click="SearchAgain_Click" />
+                        </Grid>
+
+                        <Border x:Name="DebugPreviewBanner" Margin="0,18,0,0" Padding="15,11" Background="{DynamicResource WarningSoftBrush}" BorderBrush="#E8C773" BorderThickness="1" CornerRadius="11" Visibility="Collapsed">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE7BA;" FontFamily="Segoe Fluent Icons" Foreground="{DynamicResource WarningBrush}" VerticalAlignment="Top" Margin="0,2,10,0" />
+                                <StackPanel><TextBlock Text="Pré-visualização de interface" FontWeight="SemiBold" Foreground="{DynamicResource WarningBrush}" /><TextBlock Text="Os controles estão visíveis, mas nenhum comando é enviado sem um dispositivo real." Style="{StaticResource Caption}" Margin="0,2,0,0" /></StackPanel>
+                            </StackPanel>
                         </Border>
-                    </Grid>
-                </Border>
 
-                <Grid Margin="0,18,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="18" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
+                        <Grid Margin="0,22,0,0">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="18" /><ColumnDefinition x:Name="HomeSideColumn" Width="340" /></Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <!-- The product's core relationship: me → data flow → destination. -->
+                                <Border x:Name="SendHero" Background="#101B2D" CornerRadius="18" Padding="24" BorderBrush="#263955" BorderThickness="1">
+                                    <Grid>
+                                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock Text="ENVIAR DIRETAMENTE" Foreground="#8294B1" FontSize="10" FontWeight="SemiBold" />
+                                                <TextBlock Text="Para onde vamos enviar?" Foreground="White" FontSize="22" FontWeight="SemiBold" Margin="0,7,0,0" />
+                                            </StackPanel>
+                                            <Grid Grid.Column="1" Width="78" Height="46">
+                                                <Ellipse Width="32" Height="32" HorizontalAlignment="Left" Fill="#263958" Stroke="#6682AC" />
+                                                <Ellipse Width="32" Height="32" HorizontalAlignment="Right" Fill="#1E4467" Stroke="#29B4D0" />
+                                                <Rectangle Height="2" Width="28" Fill="#496789" HorizontalAlignment="Center" />
+                                                <Ellipse x:Name="FlowParticle" Width="7" Height="7" Fill="#35C4DD" HorizontalAlignment="Center" />
+                                            </Grid>
+                                        </Grid>
+                                        <ListBox x:Name="FeatureDestinationsList" Grid.Row="1" SelectionMode="Extended" Margin="0,18,0,0" MinHeight="70" MaxHeight="176" ItemTemplate="{StaticResource DeviceDestinationTemplate}" Background="#17263C" BorderBrush="#2B405F" BorderThickness="1" Padding="4" />
+                                        <Border x:Name="DestinationEmptyState" Grid.Row="1" Margin="0,18,0,0" Background="#17263C" BorderBrush="#2B405F" BorderThickness="1" CornerRadius="12" Padding="18" Visibility="Collapsed">
+                                            <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE701;" FontFamily="Segoe Fluent Icons" Foreground="#8294B1" FontSize="18" VerticalAlignment="Center" /><StackPanel Margin="12,0,0,0"><TextBlock Text="Nenhum destino conectado" Foreground="#EDF3FC" FontWeight="SemiBold" /><TextBlock Text="Deixe o Veyro aberto no outro dispositivo." Foreground="#8294B1" FontSize="11" Margin="0,3,0,0" /></StackPanel></StackPanel>
+                                        </Border>
+                                        <Grid Grid.Row="2" Margin="0,18,0,0">
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                            <Button x:Name="HeroSendButton" Content="Selecionar arquivos" Click="SendFiles_Click" Padding="20,11" />
+                                            <Button Grid.Column="1" Content="Enviar clipboard" Click="SendClipboard_Click" Style="{StaticResource SecondaryButton}" Background="#1B2B43" Foreground="#E8EFF9" BorderBrush="#365073" Margin="10,0,0,0" />
+                                        </Grid>
+                                    </Grid>
+                                </Border>
 
-                    <Border Grid.Column="0" Background="White" CornerRadius="14" Padding="22" BorderBrush="#E2E8F0" BorderThickness="1">
-                        <StackPanel>
-                            <TextBlock Text="Bluetooth Low Energy" FontWeight="SemiBold" FontSize="16" Foreground="{StaticResource VeyroInk}" />
-                            <TextBlock Text="Descoberta e controle" Margin="0,4,0,0" Foreground="{StaticResource VeyroMuted}" />
-                            <TextBlock x:Name="BleStatusText" Margin="0,18,0,0" FontWeight="SemiBold" />
-                        </StackPanel>
-                    </Border>
+                                <Border x:Name="DropZone" Margin="0,14,0,0" Padding="18" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="1" CornerRadius="14">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="42" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                        <Border Width="36" Height="36" Background="{DynamicResource PrimarySoftBrush}" CornerRadius="10"><TextBlock Text="&#xE8B7;" FontFamily="Segoe Fluent Icons" Foreground="{DynamicResource PrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+                                        <StackPanel Grid.Column="1" Margin="11,0"><TextBlock Text="Ou arraste arquivos até aqui" FontWeight="SemiBold" /><TextBlock Text="O destino selecionado será destacado antes do envio." Style="{StaticResource Caption}" Margin="0,3,0,0" /></StackPanel>
+                                        <TextBlock Grid.Column="2" Text="Ctrl + O" Style="{StaticResource Caption}" VerticalAlignment="Center" />
+                                    </Grid>
+                                </Border>
 
-                    <Border Grid.Column="2" Background="White" CornerRadius="14" Padding="22" BorderBrush="#E2E8F0" BorderThickness="1">
-                        <StackPanel>
-                            <TextBlock Text="Wi-Fi Direct" FontWeight="SemiBold" FontSize="16" Foreground="{StaticResource VeyroInk}" />
-                            <TextBlock Text="Canal direto de dados" Margin="0,4,0,0" Foreground="{StaticResource VeyroMuted}" />
-                            <TextBlock x:Name="WifiDirectStatusText" Margin="0,18,0,0" FontWeight="SemiBold" />
-                            <TextBlock x:Name="ActiveSessionsText" Text="0 sessões seguras" Margin="0,6,0,0" FontSize="11" Foreground="{StaticResource VeyroMuted}" />
-                            <TextBlock x:Name="GroupStatusText" Text="Grupo: este computador é o coordenador"
-                                       Margin="0,4,0,0" FontSize="11" TextWrapping="Wrap" Foreground="{StaticResource VeyroMuted}" />
-                        </StackPanel>
-                    </Border>
-                </Grid>
-
-                <Border Margin="0,18,0,0" Background="{StaticResource VeyroBlueSoft}" CornerRadius="14" Padding="22">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel>
-                            <TextBlock Text="Transportes diretos" FontWeight="Bold" FontSize="16" Foreground="#173A63" />
-                            <TextBlock x:Name="DiscoveryStatusText" Text="Preparando anúncio e varredura Bluetooth…"
-                                       Margin="0,5,20,0" TextWrapping="Wrap" Foreground="#365675" />
-                        </StackPanel>
-                        <Button Grid.Column="1" Content="Minimizar para a bandeja" Click="HideToTray_Click" VerticalAlignment="Center" />
-                    </Grid>
-                </Border>
-
-                <Grid Margin="0,18,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="18" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-
-                    <Border Grid.Column="0" Background="White" CornerRadius="14" Padding="20" BorderBrush="#E2E8F0" BorderThickness="1">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="*" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <TextBlock Text="Dispositivos próximos" FontSize="17" FontWeight="Bold" Foreground="{StaticResource VeyroInk}" />
-                            <TextBlock Grid.Row="1" Text="Presença Veyro detectada por BLE" Margin="0,4,0,12" Foreground="{StaticResource VeyroMuted}" />
-                            <ListBox x:Name="NearbyDevicesList" Grid.Row="2" MinHeight="105" MaxHeight="160" BorderThickness="0" Background="#F7F9FC" SelectionChanged="NearbyDevicesList_SelectionChanged">
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Margin="8,6">
-                                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" Foreground="{StaticResource VeyroInk}" />
-                                            <TextBlock Text="{Binding Details}" Margin="0,3,0,0" FontSize="11" Foreground="{StaticResource VeyroMuted}" />
+                                <Grid Margin="0,28,0,10">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <TextBlock Text="Dispositivos descobertos" Style="{StaticResource SectionTitle}" />
+                                    <TextBlock Grid.Column="1" Text="BLE · proximidade" Style="{StaticResource Caption}" VerticalAlignment="Center" />
+                                </Grid>
+                                <Border Style="{StaticResource Card}" Padding="8">
+                                    <Grid MinHeight="150">
+                                        <ListBox x:Name="NearbyDevicesList" ItemTemplate="{StaticResource NearbyDeviceTemplate}" SelectionChanged="NearbyDevicesList_SelectionChanged" />
+                                        <StackPanel x:Name="NearbyEmptyState" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="360">
+                                            <Grid Width="72" Height="72" HorizontalAlignment="Center">
+                                                <Ellipse Stroke="#D6DEEB" StrokeThickness="1" /><Ellipse Width="48" Height="48" Stroke="#C6D2E4" StrokeThickness="1" />
+                                                <Ellipse x:Name="RadarPulse" Width="10" Height="10" Fill="{DynamicResource PrimaryBrush}" />
+                                            </Grid>
+                                            <TextBlock Text="Procurando dispositivos próximos" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,12,0,0" />
+                                            <TextBlock Text="Mantenha o Veyro aberto no celular e o Bluetooth ativado." Style="{StaticResource Caption}" TextAlignment="Center" Margin="0,5,0,0" />
                                         </StackPanel>
-                                    </DataTemplate>
-                                </ListBox.ItemTemplate>
-                            </ListBox>
-                            <Button x:Name="PairButton" Grid.Row="3" Content="Parear dispositivo" Margin="0,14,0,0" IsEnabled="False" Click="PairButton_Click" />
+                                    </Grid>
+                                </Border>
+                                <Button x:Name="PairButton" Content="Conectar dispositivo selecionado" Margin="0,12,0,0" IsEnabled="False" Click="PairButton_Click" HorizontalAlignment="Left" />
+                            </StackPanel>
+
+                            <StackPanel x:Name="HomeSidePanel" Grid.Column="2">
+                                <Border Style="{StaticResource Card}">
+                                    <StackPanel>
+                                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                            <TextBlock Text="Atividade" Style="{StaticResource SectionTitle}" /><Button Grid.Column="1" Content="Ver tudo" Style="{StaticResource GhostButton}" Click="OpenTransfers_Click" />
+                                        </Grid>
+                                        <ListBox x:Name="RecentTransfersList" Margin="0,12,0,0" ItemTemplate="{StaticResource TransferTemplate}" MaxHeight="238" IsHitTestVisible="False" />
+                                        <StackPanel x:Name="RecentTransfersEmpty" Margin="0,24,0,18" HorizontalAlignment="Center">
+                                            <TextBlock Text="&#xE896;" FontFamily="Segoe Fluent Icons" FontSize="24" Foreground="{DynamicResource TextTertiaryBrush}" HorizontalAlignment="Center" />
+                                            <TextBlock Text="Tudo tranquilo por aqui" FontWeight="SemiBold" Margin="0,9,0,0" HorizontalAlignment="Center" />
+                                            <TextBlock Text="Seus envios recentes aparecem aqui." Style="{StaticResource Caption}" Margin="0,4,0,0" HorizontalAlignment="Center" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource Card}" Margin="0,14,0,0">
+                                    <StackPanel>
+                                        <TextBlock Text="Ações rápidas" Style="{StaticResource SectionTitle}" />
+                                        <TextBlock Text="Para o dispositivo selecionado" Style="{StaticResource Caption}" Margin="0,4,0,13" />
+                                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="8" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                            <Button Content="Status" Style="{StaticResource SecondaryButton}" Click="SendDeviceState_Click" />
+                                            <Button Grid.Column="2" Content="Testar ping" Style="{StaticResource SecondaryButton}" Click="Ping_Click" />
+                                        </Grid>
+                                        <Grid Margin="0,9,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                            <TextBox x:Name="LinkTextBox" ToolTip="Cole um endereço para abrir no dispositivo" />
+                                            <Button Grid.Column="1" Content="Enviar link" Click="SendLink_Click" Margin="8,0,0,0" />
+                                        </Grid>
+                                        <Expander Header="Mais controles" Margin="0,14,0,0" Foreground="{DynamicResource TextSecondaryBrush}">
+                                            <StackPanel Margin="0,12,0,0">
+                                                <WrapPanel><Button Content="Notificações" Style="{StaticResource SecondaryButton}" Click="SyncNotifications_Click" Margin="0,0,7,7" /><Button Content="Reproduzir" Style="{StaticResource SecondaryButton}" Click="SendMedia_Click" CommandParameter="Play" Margin="0,0,7,7" /><Button Content="Pausar" Style="{StaticResource SecondaryButton}" Click="SendMedia_Click" CommandParameter="Pause" Margin="0,0,7,7" /><Button Content="Próxima" Style="{StaticResource SecondaryButton}" Click="SendMedia_Click" CommandParameter="Next" Margin="0,0,7,7" /></WrapPanel>
+                                                <WrapPanel><Button Content="Apresentar" Style="{StaticResource SecondaryButton}" Click="SendPresentation_Click" CommandParameter="Start" Margin="0,0,7,7" /><Button Content="Encerrar" Style="{StaticResource SecondaryButton}" Click="SendPresentation_Click" CommandParameter="Stop" Margin="0,0,7,7" /><Button Content="Tela preta" Style="{StaticResource SecondaryButton}" Click="SendPresentation_Click" CommandParameter="Blackout" Margin="0,0,7,7" /></WrapPanel>
+                                                <Grid Margin="0,4,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><ComboBox x:Name="SecureCommandCombo" DisplayMemberPath="DisplayName" /><Button Grid.Column="1" Content="Executar" Click="SendSecureCommand_Click" Margin="8,0,0,0" /></Grid>
+                                            </StackPanel>
+                                        </Expander>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
                         </Grid>
-                    </Border>
+                    </StackPanel>
+                </ScrollViewer>
 
-                    <Border Grid.Column="2" Background="White" CornerRadius="14" Padding="20" BorderBrush="#E2E8F0" BorderThickness="1">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="*" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <TextBlock Text="Trust Hub" FontSize="17" FontWeight="Bold" Foreground="{StaticResource VeyroInk}" />
-                            <TextBlock Grid.Row="1" Text="Identidades confirmadas por você" Margin="0,4,0,12" Foreground="{StaticResource VeyroMuted}" />
-                            <ListBox x:Name="TrustedDevicesList" Grid.Row="2" MinHeight="105" MaxHeight="160" BorderThickness="0" Background="#F7F9FC" SelectionChanged="TrustedDevicesList_SelectionChanged">
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Margin="8,6">
-                                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" Foreground="{StaticResource VeyroInk}" />
-                                            <TextBlock Text="{Binding Details}" Margin="0,3,0,0" FontSize="11" Foreground="{StaticResource VeyroMuted}" />
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ListBox.ItemTemplate>
-                            </ListBox>
-                            <Button x:Name="RevokeButton" Grid.Row="3" Content="Revogar confiança" Margin="0,14,0,0" Background="#9A3434" IsEnabled="False" Click="RevokeButton_Click" />
+                <!-- TRANSFER CENTER -->
+                <ScrollViewer x:Name="TransfersPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="34,30,34,42">
+                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <StackPanel><TextBlock Text="Transferências" Style="{StaticResource PageTitle}" /><TextBlock Text="Acompanhe o caminho de cada arquivo entre seus dispositivos." Style="{StaticResource BodySecondary}" Margin="0,6,0,0" /></StackPanel>
+                            <Button Grid.Column="1" x:Name="CancelTransfersButton" Content="Cancelar envio ativo" Style="{StaticResource DangerButton}" IsEnabled="False" Click="CancelTransfers_Click" VerticalAlignment="Center" />
                         </Grid>
-                    </Border>
-                </Grid>
-
-                <Border Margin="0,18,0,0" Background="White" CornerRadius="14" Padding="22" BorderBrush="#E2E8F0" BorderThickness="1">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="260" />
-                            <ColumnDefinition Width="22" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel>
-                            <TextBlock Text="Destinos" FontSize="17" FontWeight="Bold" Foreground="{StaticResource VeyroInk}" />
-                            <TextBlock Text="Selecione um ou vários membros" Margin="0,4,0,10" Foreground="{StaticResource VeyroMuted}" />
-                            <ListBox x:Name="FeatureDestinationsList" SelectionMode="Extended" MinHeight="105" MaxHeight="170"
-                                     BorderThickness="0" Background="#F7F9FC">
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Margin="8,5">
-                                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" Foreground="{StaticResource VeyroInk}" />
-                                            <TextBlock Text="{Binding Details}" FontSize="11" Foreground="{StaticResource VeyroMuted}" />
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ListBox.ItemTemplate>
-                            </ListBox>
+                        <Border x:Name="TransferEmptyState" Style="{StaticResource Card}" Margin="0,24,0,0" Padding="34">
+                            <StackPanel HorizontalAlignment="Center" MaxWidth="410">
+                                <Grid Width="112" Height="70"><Ellipse Width="48" Height="48" HorizontalAlignment="Left" Fill="{DynamicResource PrimarySoftBrush}" /><Ellipse Width="48" Height="48" HorizontalAlignment="Right" Fill="{DynamicResource ConnectedSoftBrush}" /><Rectangle Width="32" Height="2" Fill="{DynamicResource BorderStrongBrush}" /><TextBlock Text="&#xE898;" FontFamily="Segoe Fluent Icons" Foreground="{DynamicResource PrimaryBrush}" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center" /></Grid>
+                                <TextBlock Text="Nenhuma transferência ainda" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,16,0,0" />
+                                <TextBlock Text="Selecione um dispositivo em Por perto e arraste seus arquivos. O progresso, velocidade e resultado aparecerão aqui." Style="{StaticResource BodySecondary}" TextAlignment="Center" Margin="0,7,0,0" />
+                                <Button Content="Ir para dispositivos próximos" Click="OpenNearby_Click" Margin="0,18,0,0" HorizontalAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+                        <StackPanel x:Name="TransferContent" Visibility="Collapsed">
+                            <TextBlock Text="ATIVAS" Style="{StaticResource Eyebrow}" Margin="2,26,0,10" />
+                            <ListBox x:Name="ActiveTransfersList" ItemTemplate="{StaticResource TransferTemplate}" />
+                            <TextBlock Text="CONCLUÍDAS" Style="{StaticResource Eyebrow}" Margin="2,22,0,10" />
+                            <ListBox x:Name="CompletedTransfersList" ItemTemplate="{StaticResource TransferTemplate}" />
+                            <TextBlock Text="FALHAS E CANCELADAS" Style="{StaticResource Eyebrow}" Margin="2,22,0,10" />
+                            <ListBox x:Name="FailedTransfersList" ItemTemplate="{StaticResource TransferTemplate}" />
+                            <Button Content="Limpar histórico concluído" Style="{StaticResource GhostButton}" HorizontalAlignment="Left" Click="ClearTransferHistory_Click" Margin="0,8,0,0" />
                         </StackPanel>
-                        <StackPanel Grid.Column="2">
-                            <TextBlock Text="Compartilhar e consultar" FontSize="17" FontWeight="Bold" Foreground="{StaticResource VeyroInk}" />
-                            <WrapPanel Margin="0,12,0,0">
-                                <Button Content="Enviar arquivos" Click="SendFiles_Click" Margin="0,0,8,8" />
-                                <Button Content="Enviar clipboard" Click="SendClipboard_Click" Margin="0,0,8,8" />
-                                <Button Content="Bateria e conexão" Click="SendDeviceState_Click" Margin="0,0,8,8" />
-                                <Button Content="Ping" Click="Ping_Click" Margin="0,0,8,8" />
-                            </WrapPanel>
-                            <Grid Margin="0,4,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBox x:Name="LinkTextBox" MinWidth="240" Padding="8" ToolTip="https://..." />
-                                <Button Grid.Column="1" Content="Enviar link" Click="SendLink_Click" Margin="8,0,0,0" />
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- DEVICES / TRUST / SHARED CONTENT -->
+                <ScrollViewer x:Name="DevicesPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="34,30,34,42">
+                        <TextBlock Text="Dispositivos" Style="{StaticResource PageTitle}" />
+                        <TextBlock Text="Confiança, permissões e conteúdo compartilhado em um só lugar." Style="{StaticResource BodySecondary}" Margin="0,6,0,0" />
+                        <Grid Margin="0,24,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="16" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                            <Border Style="{StaticResource Card}"><StackPanel><TextBlock Text="Dispositivos confiáveis" Style="{StaticResource SectionTitle}" /><TextBlock Text="Identidades que você confirmou por PIN" Style="{StaticResource Caption}" Margin="0,4,0,12" /><Grid MinHeight="128"><ListBox x:Name="TrustedDevicesList" MaxHeight="230" SelectionChanged="TrustedDevicesList_SelectionChanged"><ListBox.ItemTemplate><DataTemplate><Grid Margin="13,10"><Grid.ColumnDefinitions><ColumnDefinition Width="36" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions><Border Width="32" Height="32" CornerRadius="16" Background="{DynamicResource ConnectedSoftBrush}"><TextBlock Text="&#xE73E;" FontFamily="Segoe Fluent Icons" Foreground="{DynamicResource ConnectedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border><StackPanel Grid.Column="1" Margin="10,0"><TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" /><TextBlock Text="{Binding Details}" Style="{StaticResource Caption}" TextTrimming="CharacterEllipsis" /></StackPanel></Grid></DataTemplate></ListBox.ItemTemplate></ListBox><StackPanel x:Name="TrustedEmptyState" VerticalAlignment="Center" HorizontalAlignment="Center"><TextBlock Text="Nenhum dispositivo confiável" FontWeight="SemiBold" HorizontalAlignment="Center" /><TextBlock Text="Conecte um dispositivo em Por perto." Style="{StaticResource Caption}" Margin="0,4,0,0" /></StackPanel></Grid><Button x:Name="RevokeButton" Content="Esquecer dispositivo" Style="{StaticResource DangerButton}" IsEnabled="False" Click="RevokeButton_Click" HorizontalAlignment="Left" Margin="0,8,0,0" /></StackPanel></Border>
+                            <Border Grid.Column="2" Style="{StaticResource Card}"><StackPanel><TextBlock Text="Permissões deste dispositivo" Style="{StaticResource SectionTitle}" /><TextBlock Text="Controles independentes e fáceis de reverter" Style="{StaticResource Caption}" Margin="0,4,0,12" /><TextBlock Text="Dispositivo" Style="{StaticResource Caption}" Margin="0,0,0,4" /><ComboBox x:Name="PermissionDeviceCombo" DisplayMemberPath="DisplayName" SelectionChanged="PermissionDeviceCombo_SelectionChanged" /><TextBlock Text="Recurso" Style="{StaticResource Caption}" Margin="0,11,0,4" /><ComboBox x:Name="PermissionFeatureCombo" DisplayMemberPath="DisplayName" SelectionChanged="PermissionFeatureCombo_SelectionChanged" /><TextBlock Text="Comportamento" Style="{StaticResource Caption}" Margin="0,11,0,4" /><ComboBox x:Name="PermissionPolicyCombo" DisplayMemberPath="DisplayName" SelectionChanged="PermissionPolicyCombo_SelectionChanged" /></StackPanel></Border>
+                        </Grid>
+
+                        <TextBlock Text="CONTEÚDO COMPARTILHADO" Style="{StaticResource Eyebrow}" Margin="2,28,0,10" />
+                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="16" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                            <Border Style="{StaticResource Card}"><StackPanel><TextBlock Text="Pastas deste computador" Style="{StaticResource SectionTitle}" /><TextBlock Text="Somente as pastas adicionadas ficam visíveis" Style="{StaticResource Caption}" Margin="0,4,0,12" /><Grid MinHeight="120"><ListBox x:Name="SharedFoldersList" MaxHeight="210"><ListBox.ItemTemplate><DataTemplate><StackPanel Margin="13,10"><TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" /><TextBlock Text="{Binding Path}" Style="{StaticResource Caption}" TextTrimming="CharacterEllipsis" /></StackPanel></DataTemplate></ListBox.ItemTemplate></ListBox><StackPanel x:Name="SharedFoldersEmptyState" VerticalAlignment="Center" HorizontalAlignment="Center"><TextBlock Text="Nenhuma pasta compartilhada" FontWeight="SemiBold" HorizontalAlignment="Center" /><TextBlock Text="Você controla exatamente o que fica visível." Style="{StaticResource Caption}" Margin="0,4,0,0" /></StackPanel></Grid><WrapPanel Margin="0,8,0,0"><Button Content="Adicionar pasta" Click="AddSharedFolder_Click" Margin="0,0,8,0" /><Button Content="Remover" Style="{StaticResource DangerButton}" Click="RemoveSharedFolder_Click" /></WrapPanel></StackPanel></Border>
+                            <Border Grid.Column="2" Style="{StaticResource Card}"><StackPanel><TextBlock Text="Pastas do outro dispositivo" Style="{StaticResource SectionTitle}" /><TextBlock Text="Usa o destino selecionado em Por perto" Style="{StaticResource Caption}" Margin="0,4,0,12" /><Grid MinHeight="120"><ListBox x:Name="RemoteFilesList" MaxHeight="210" MouseDoubleClick="RemoteFilesList_MouseDoubleClick"><ListBox.ItemTemplate><DataTemplate><StackPanel Margin="13,10"><TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" /><TextBlock Text="{Binding Details}" Style="{StaticResource Caption}" /></StackPanel></DataTemplate></ListBox.ItemTemplate></ListBox><StackPanel x:Name="RemoteFilesEmptyState" VerticalAlignment="Center" HorizontalAlignment="Center"><TextBlock Text="Nenhuma pasta carregada" FontWeight="SemiBold" HorizontalAlignment="Center" /><TextBlock Text="Selecione um destino e peça a listagem." Style="{StaticResource Caption}" Margin="0,4,0,0" /></StackPanel></Grid><WrapPanel Margin="0,8,0,0"><Button Content="Listar pastas" Click="RequestRemoteFolders_Click" Margin="0,0,8,0" /><Button Content="Abrir ou baixar" Style="{StaticResource SecondaryButton}" Click="OpenRemoteFile_Click" /></WrapPanel></StackPanel></Border>
+                        </Grid>
+
+                        <Border Margin="0,16,0,0" Background="#101B2D" CornerRadius="16" Padding="20" BorderBrush="#263955" BorderThickness="1">
+                            <Grid><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="200" /></Grid.RowDefinitions>
+                                <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Mesa digitalizadora" Foreground="White" FontSize="17" FontWeight="SemiBold" /><TextBlock Text="Pressão e inclinação recebidas do dispositivo aparecem neste quadro." Foreground="#91A2BD" FontSize="11" Margin="0,4,0,0" /></StackPanel><Button Grid.Column="1" Content="Limpar" Style="{StaticResource SecondaryButton}" Background="#1B2B43" Foreground="White" BorderBrush="#365073" Click="ClearTablet_Click" /></Grid>
+                                <Border Grid.Row="1" Margin="0,14,0,0" Background="White" CornerRadius="10" ClipToBounds="True"><Canvas x:Name="TabletCanvas" Background="White" ClipToBounds="True" /></Border>
                             </Grid>
-                            <TextBlock Text="Integração do sistema" Margin="0,14,0,4" FontWeight="SemiBold" Foreground="{StaticResource VeyroInk}" />
-                            <WrapPanel>
-                                <Button Content="Notificações" Click="SyncNotifications_Click" Margin="0,0,8,8" />
-                                <Button Content="▶ Mídia" Click="SendMedia_Click" CommandParameter="Play" Margin="0,0,8,8" />
-                                <Button Content="⏸ Mídia" Click="SendMedia_Click" CommandParameter="Pause" Margin="0,0,8,8" />
-                                <Button Content="Próxima" Click="SendMedia_Click" CommandParameter="Next" Margin="0,0,8,8" />
-                                <Button Content="Apresentar" Click="SendPresentation_Click" CommandParameter="Start" Margin="0,0,8,8" />
-                                <Button Content="Encerrar" Click="SendPresentation_Click" CommandParameter="Stop" Margin="0,0,8,8" />
-                                <Button Content="Tela preta" Click="SendPresentation_Click" CommandParameter="Blackout" Margin="0,0,8,8" />
-                            </WrapPanel>
-                            <Grid Margin="0,2,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <ComboBox x:Name="SecureCommandCombo" DisplayMemberPath="DisplayName" />
-                                <Button Grid.Column="1" Content="Enviar ação segura" Click="SendSecureCommand_Click" Margin="8,0,0,0" />
-                            </Grid>
-                            <TextBlock x:Name="FeatureStatusText" Text="Recursos prontos"
-                                       Margin="0,14,0,0" TextWrapping="Wrap" Foreground="#365675" />
-                            <TextBlock x:Name="RemoteStateText" Text="Nenhum estado remoto recebido"
-                                       Margin="0,5,0,0" FontSize="11" TextWrapping="Wrap" Foreground="{StaticResource VeyroMuted}" />
-                        </StackPanel>
-                    </Grid>
-                </Border>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
 
-                <Border Margin="0,18,0,0" Background="White" CornerRadius="14" Padding="22" BorderBrush="#E2E8F0" BorderThickness="1">
-                    <StackPanel>
-                        <TextBlock Text="Permissões contextuais" FontSize="17" FontWeight="Bold" Foreground="{StaticResource VeyroInk}" />
-                        <TextBlock Text="Regras independentes por dispositivo. “Perguntar” exige confirmação a cada ação recebida."
-                                   Margin="0,4,0,12" TextWrapping="Wrap" Foreground="{StaticResource VeyroMuted}" />
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="2*" />
-                                <ColumnDefinition Width="12" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="12" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <ComboBox x:Name="PermissionDeviceCombo" DisplayMemberPath="DisplayName"
-                                      SelectionChanged="PermissionDeviceCombo_SelectionChanged" />
-                            <ComboBox x:Name="PermissionFeatureCombo" Grid.Column="2" DisplayMemberPath="DisplayName"
-                                      SelectionChanged="PermissionFeatureCombo_SelectionChanged" />
-                            <ComboBox x:Name="PermissionPolicyCombo" Grid.Column="4" DisplayMemberPath="DisplayName"
-                                      SelectionChanged="PermissionPolicyCombo_SelectionChanged" />
-                        </Grid>
+                <!-- SETTINGS -->
+                <ScrollViewer x:Name="SettingsPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                    <StackPanel x:Name="SettingsContent" Margin="34,30,34,42" MaxWidth="860" HorizontalAlignment="Left">
+                        <TextBlock Text="Ajustes" Style="{StaticResource PageTitle}" />
+                        <TextBlock Text="Preferências simples primeiro; detalhes técnicos quando você precisar." Style="{StaticResource BodySecondary}" Margin="0,6,0,0" />
+                        <TextBlock Text="GERAL" Style="{StaticResource Eyebrow}" Margin="2,26,0,10" />
+                        <Border Style="{StaticResource Card}"><StackPanel>
+                            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Iniciar com o Windows" FontWeight="SemiBold" /><TextBlock Text="O Veyro fica disponível em segundo plano para receber conexões." Style="{StaticResource Caption}" Margin="0,3,0,0" /></StackPanel><CheckBox x:Name="StartWithWindowsCheckBox" Grid.Column="1" VerticalAlignment="Center" Click="StartWithWindows_Click" /></Grid>
+                            <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="0,17" />
+                            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Aparência" FontWeight="SemiBold" /><TextBlock Text="Escolha um tema ou acompanhe o Windows." Style="{StaticResource Caption}" Margin="0,3,0,0" /></StackPanel><ComboBox x:Name="ThemeCombo" Grid.Column="1" Width="150" SelectionChanged="ThemeCombo_SelectionChanged"><ComboBoxItem Content="Sistema" Tag="System" IsSelected="True" /><ComboBoxItem Content="Claro" Tag="Light" /><ComboBoxItem Content="Escuro" Tag="Dark" /></ComboBox></Grid>
+                        </StackPanel></Border>
+
+                        <TextBlock Text="ESTE COMPUTADOR" Style="{StaticResource Eyebrow}" Margin="2,26,0,10" />
+                        <Border Style="{StaticResource Card}"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="52" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><Border Width="46" Height="46" Background="{DynamicResource PrimarySoftBrush}" CornerRadius="14"><TextBlock Text="&#xE7F8;" FontFamily="Segoe Fluent Icons" FontSize="20" Foreground="{DynamicResource PrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border><StackPanel Grid.Column="1" Margin="13,0"><TextBlock x:Name="DeviceNameText" FontSize="17" FontWeight="SemiBold" /><TextBlock x:Name="DeviceIdText" Style="{StaticResource Caption}" Margin="0,4,0,0" TextTrimming="CharacterEllipsis" /></StackPanel><Border Grid.Column="2" Background="{DynamicResource ConnectedSoftBrush}" CornerRadius="11" Padding="10,5" VerticalAlignment="Center"><TextBlock Text="Identidade protegida" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource ConnectedBrush}" /></Border></Grid></Border>
+
+                        <TextBlock Text="CONEXÃO" Style="{StaticResource Eyebrow}" Margin="2,26,0,10" />
+                        <Border Style="{StaticResource Card}"><StackPanel>
+                            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Bluetooth Low Energy" FontWeight="SemiBold" /><TextBlock Text="Descoberta e canal de controle" Style="{StaticResource Caption}" Margin="0,3,0,0" /></StackPanel><TextBlock x:Name="BleStatusText" Grid.Column="1" FontWeight="SemiBold" VerticalAlignment="Center" /></Grid>
+                            <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="0,17" />
+                            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Wi-Fi Direct" FontWeight="SemiBold" /><TextBlock Text="Canal direto de alta velocidade" Style="{StaticResource Caption}" Margin="0,3,0,0" /></StackPanel><StackPanel Grid.Column="1"><TextBlock x:Name="WifiDirectStatusText" FontWeight="SemiBold" HorizontalAlignment="Right" /><TextBlock x:Name="ActiveSessionsText" Text="0 sessões seguras" Style="{StaticResource Caption}" HorizontalAlignment="Right" Margin="0,3,0,0" /></StackPanel></Grid>
+                            <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="0,17" />
+                            <TextBlock x:Name="GroupStatusText" Text="Grupo: este computador é o coordenador" Style="{StaticResource Caption}" />
+                        </StackPanel></Border>
+
+                        <Expander Header="Diagnóstico e dados locais" Margin="0,18,0,0" Foreground="{DynamicResource TextSecondaryBrush}"><Border Style="{StaticResource InsetCard}" Margin="0,10,0,0"><StackPanel><TextBlock x:Name="DiscoveryStatusText" Text="Preparando descoberta…" Style="{StaticResource BodySecondary}" /><TextBlock x:Name="FeatureStatusText" Text="Recursos prontos" Style="{StaticResource BodySecondary}" Margin="0,7,0,0" /><TextBlock x:Name="RemoteStateText" Text="Nenhum estado remoto recebido" Style="{StaticResource Caption}" Margin="0,7,0,0" /><TextBlock x:Name="DataPathText" Style="{StaticResource Caption}" Margin="0,7,0,0" TextTrimming="CharacterEllipsis" /></StackPanel></Border></Expander>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- Drag target overlay. -->
+                <Border x:Name="DragOverlay" Visibility="Collapsed" Margin="18" Background="#F2356AE6" BorderBrush="#FF8EB0" BorderThickness="2" CornerRadius="20" Panel.ZIndex="40" IsHitTestVisible="False">
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Border Width="64" Height="64" CornerRadius="20" Background="White"><TextBlock Text="&#xE898;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{DynamicResource PrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+                        <TextBlock Text="Solte para enviar" Foreground="White" FontSize="24" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,16,0,0" />
+                        <TextBlock x:Name="DragTargetText" Text="para o dispositivo selecionado" Foreground="#DDE8FF" FontSize="13" HorizontalAlignment="Center" Margin="0,5,0,0" />
                     </StackPanel>
                 </Border>
 
-                <Border Margin="0,18,0,0" Background="White" CornerRadius="14" Padding="22" BorderBrush="#E2E8F0" BorderThickness="1">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="18" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel>
-                            <TextBlock Text="Pastas deste computador" FontSize="17" FontWeight="Bold" Foreground="{StaticResource VeyroInk}" />
-                            <TextBlock Text="Somente pastas adicionadas aqui ficam visíveis" Margin="0,4,0,10" TextWrapping="Wrap" Foreground="{StaticResource VeyroMuted}" />
-                            <ListBox x:Name="SharedFoldersList" MinHeight="110" MaxHeight="180" BorderThickness="0" Background="#F7F9FC">
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Margin="8,5">
-                                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
-                                            <TextBlock Text="{Binding Path}" FontSize="10" TextTrimming="CharacterEllipsis" Foreground="{StaticResource VeyroMuted}" />
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ListBox.ItemTemplate>
-                            </ListBox>
-                            <WrapPanel Margin="0,10,0,0">
-                                <Button Content="Adicionar pasta" Click="AddSharedFolder_Click" Margin="0,0,8,0" />
-                                <Button Content="Remover" Click="RemoveSharedFolder_Click" Background="#9A3434" />
-                            </WrapPanel>
-                        </StackPanel>
-                        <StackPanel Grid.Column="2">
-                            <TextBlock Text="Pastas do dispositivo" FontSize="17" FontWeight="Bold" Foreground="{StaticResource VeyroInk}" />
-                            <TextBlock Text="Usa o primeiro destino selecionado acima" Margin="0,4,0,10" Foreground="{StaticResource VeyroMuted}" />
-                            <ListBox x:Name="RemoteFilesList" MinHeight="110" MaxHeight="180" BorderThickness="0" Background="#F7F9FC"
-                                     MouseDoubleClick="RemoteFilesList_MouseDoubleClick">
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Margin="8,5">
-                                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
-                                            <TextBlock Text="{Binding Details}" FontSize="10" Foreground="{StaticResource VeyroMuted}" />
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ListBox.ItemTemplate>
-                            </ListBox>
-                            <WrapPanel Margin="0,10,0,0">
-                                <Button Content="Listar raízes" Click="RequestRemoteFolders_Click" Margin="0,0,8,0" />
-                                <Button Content="Abrir / baixar" Click="OpenRemoteFile_Click" />
-                            </WrapPanel>
-                        </StackPanel>
-                    </Grid>
+                <!-- Non-blocking app feedback. -->
+                <Border x:Name="ToastHost" Visibility="Collapsed" Background="#F2172233" CornerRadius="12" Padding="14,11" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="22" MaxWidth="420" Effect="{StaticResource ShadowHigh}" Panel.ZIndex="60">
+                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="24" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions><TextBlock x:Name="ToastIcon" Text="&#xE73E;" FontFamily="Segoe Fluent Icons" Foreground="White" FontSize="15" VerticalAlignment="Top" /><TextBlock x:Name="ToastText" Grid.Column="1" Foreground="White" TextWrapping="Wrap" /></Grid>
                 </Border>
-
-                <Border Margin="0,18,0,0" Background="#13253A" CornerRadius="14" Padding="22">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="220" />
-                        </Grid.RowDefinitions>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="Mesa digitalizadora" FontSize="17" FontWeight="Bold" Foreground="White" />
-                            <Button Grid.Column="1" Content="Limpar" Click="ClearTablet_Click" Padding="12,6" />
-                        </Grid>
-                        <TextBlock Grid.Row="1" Text="Pressão e inclinação são preservadas no quadro; o ponteiro do Windows acompanha a caneta."
-                                   Margin="0,5,0,10" Foreground="#BED0E3" TextWrapping="Wrap" />
-                        <Border Grid.Row="2" Background="White" CornerRadius="9" ClipToBounds="True">
-                            <Canvas x:Name="TabletCanvas" Background="White" ClipToBounds="True" />
-                        </Border>
-                    </Grid>
-                </Border>
-
-                <TextBlock x:Name="DataPathText" Margin="2,20,0,0" FontSize="11" Foreground="#7A8490" TextTrimming="CharacterEllipsis" />
-            </StackPanel>
-        </ScrollViewer>
+            </Grid>
+        </Grid>
     </Grid>
 </Window>

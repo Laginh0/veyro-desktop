@@ -396,6 +396,7 @@ public sealed class FastChannelCoordinator : IAsyncDisposable
             new FastChannelStatusEventArgs($"Canal seguro ativo com {channel.RemoteDeviceId}"));
         _ = RunChannelAsync(channel, lifetime.Token);
         _ = BroadcastGroupStateIfCoordinatorAsync("member_connected", lifetime.Token);
+        _ = BroadcastAndroidTopologyAsync(lifetime.Token);
     }
 
     private async void Channel_PacketReceived(object? sender, FastChannelPacketEventArgs args)
@@ -611,6 +612,69 @@ public sealed class FastChannelCoordinator : IAsyncDisposable
         }
     }
 
+    private async Task BroadcastAndroidTopologyAsync(CancellationToken cancellationToken)
+    {
+        if (!groupState.LocalIsCoordinator || sessions.IsEmpty)
+        {
+            return;
+        }
+
+        try
+        {
+            var topology = new Veyro.Protocol.GroupTopologyEvent
+            {
+                Epoch = groupState.Epoch,
+                CoordinatorDeviceId = localIdentity.DeviceId
+            };
+            foreach (var member in groupState.Snapshot().Where(member => member.IsAvailable))
+            {
+                byte[] publicKey;
+                if (string.Equals(member.DeviceId, localIdentity.DeviceId, StringComparison.Ordinal))
+                {
+                    publicKey = localIdentityKey.PublicKeySpki;
+                }
+                else
+                {
+                    var trusted = trustStore.FindActive(member.DeviceId);
+                    if (trusted is null)
+                    {
+                        continue;
+                    }
+
+                    publicKey = Convert.FromBase64String(trusted.IdentityPublicKeyBase64);
+                }
+
+                topology.Members.Add(new Veyro.Protocol.GroupTopologyMember
+                {
+                    DeviceId = member.DeviceId,
+                    DisplayName = member.DisplayName,
+                    IdentityPublicKeySpki = ByteString.CopyFrom(publicKey),
+                    IsCoordinator = string.Equals(
+                        member.DeviceId,
+                        groupState.CoordinatorDeviceId,
+                        StringComparison.Ordinal),
+                    IsAvailable = member.IsAvailable
+                });
+            }
+
+            var message = new Veyro.Protocol.VeyroMessage
+            {
+                ProtocolVersion = ProtocolContract.AndroidFeatureProtocolVersion,
+                GroupTopologyEvent = topology
+            };
+            await SendApplicationMessageAsync(message, sessions.Keys.ToArray(), cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            StatusChanged?.Invoke(
+                this,
+                new FastChannelStatusEventArgs("Falha ao anunciar a topologia estrela", exception));
+        }
+    }
+
     private async Task RunChannelAsync(SecureFastChannel channel, CancellationToken cancellationToken)
     {
         Exception? failure = null;
@@ -646,6 +710,7 @@ public sealed class FastChannelCoordinator : IAsyncDisposable
                     disconnectedCoordinator
                         ? GroupControlKind.CoordinatorCommitted
                         : GroupControlKind.MembershipSnapshot);
+                await BroadcastAndroidTopologyAsync(lifetime.Token);
                 if (disconnectedCoordinator)
                 {
                     wifiDirectManager.RebuildGroup();

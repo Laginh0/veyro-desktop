@@ -3,30 +3,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              ShutdownMode="OnExplicitShutdown">
     <Application.Resources>
-        <SolidColorBrush x:Key="VeyroBlue" Color="#375F90" />
-        <SolidColorBrush x:Key="VeyroBlueSoft" Color="#D3E4FF" />
-        <SolidColorBrush x:Key="VeyroInk" Color="#17212B" />
-        <SolidColorBrush x:Key="VeyroMuted" Color="#5B6572" />
-        <SolidColorBrush x:Key="VeyroSurface" Color="#F8F9FF" />
-
-        <Style TargetType="Button">
-            <Setter Property="Background" Value="{StaticResource VeyroBlue}" />
-            <Setter Property="Foreground" Value="White" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Padding" Value="18,10" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                                CornerRadius="9"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Themes/DesignSystem.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
     </Application.Resources>
 </Application>

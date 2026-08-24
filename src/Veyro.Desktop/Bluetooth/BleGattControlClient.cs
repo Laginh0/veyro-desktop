@@ -7,21 +7,46 @@ namespace Veyro.Desktop.Bluetooth;
 
 public sealed class BleGattControlClient : IDisposable
 {
+    private readonly SemaphoreSlim connectionGate = new(1, 1);
     private BluetoothLEDevice? device;
     private GattDeviceService? service;
     private GattCharacteristic? controlCharacteristic;
     private bool disposed;
+    private bool initialConnection;
+    private int restoreQueued;
 
     public event EventHandler<BleControlPacketEventArgs>? PacketReceived;
+
+    public event EventHandler? ChannelRestored;
+
+    public event EventHandler<Exception>? ChannelRestoreFailed;
 
     public async Task ConnectAsync(ulong bluetoothAddress)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
-        Disconnect();
+        await connectionGate.WaitAsync();
+        try
+        {
+            initialConnection = true;
+            Disconnect();
+            device = await BluetoothLEDevice.FromBluetoothAddressAsync(bluetoothAddress)
+                ?? throw new InvalidOperationException("O dispositivo Bluetooth não está mais disponível.");
+            device.ConnectionStatusChanged += Device_ConnectionStatusChanged;
+            device.GattServicesChanged += Device_GattServicesChanged;
+            await InitializeGattAsync();
+        }
+        finally
+        {
+            initialConnection = false;
+            connectionGate.Release();
+        }
+    }
 
-        device = await BluetoothLEDevice.FromBluetoothAddressAsync(bluetoothAddress)
-            ?? throw new InvalidOperationException("O dispositivo Bluetooth não está mais disponível.");
-        var serviceResult = await device.GetGattServicesForUuidAsync(
+    private async Task InitializeGattAsync()
+    {
+        var activeDevice = device ?? throw new InvalidOperationException("O dispositivo BLE não está disponível.");
+        ClearGattState();
+        var serviceResult = await activeDevice.GetGattServicesForUuidAsync(
             VeyroBluetoothProtocol.ServiceUuid,
             BluetoothCacheMode.Uncached);
         if (serviceResult.Status != GattCommunicationStatus.Success || serviceResult.Services.Count == 0)
@@ -48,6 +73,58 @@ public sealed class BleGattControlClient : IDisposable
         {
             Disconnect();
             throw new InvalidOperationException($"Não foi possível assinar respostas do canal Veyro: {subscriptionStatus}.");
+        }
+    }
+
+    private void Device_ConnectionStatusChanged(BluetoothLEDevice sender, object args)
+    {
+        if (!initialConnection && sender.ConnectionStatus == BluetoothConnectionStatus.Connected)
+        {
+            QueueChannelRestore();
+        }
+    }
+
+    private void Device_GattServicesChanged(BluetoothLEDevice sender, object args)
+    {
+        if (!initialConnection)
+        {
+            QueueChannelRestore();
+        }
+    }
+
+    private async void QueueChannelRestore()
+    {
+        if (disposed || Interlocked.Exchange(ref restoreQueued, 1) != 0)
+        {
+            return;
+        }
+
+        try
+        {
+            await Task.Delay(500);
+            await connectionGate.WaitAsync();
+            try
+            {
+                if (device?.ConnectionStatus != BluetoothConnectionStatus.Connected)
+                {
+                    return;
+                }
+
+                await InitializeGattAsync();
+                ChannelRestored?.Invoke(this, EventArgs.Empty);
+            }
+            finally
+            {
+                connectionGate.Release();
+            }
+        }
+        catch (Exception exception)
+        {
+            ChannelRestoreFailed?.Invoke(this, exception);
+        }
+        finally
+        {
+            Interlocked.Exchange(ref restoreQueued, 0);
         }
     }
 
@@ -84,6 +161,18 @@ public sealed class BleGattControlClient : IDisposable
 
     private void Disconnect()
     {
+        if (device is not null)
+        {
+            device.ConnectionStatusChanged -= Device_ConnectionStatusChanged;
+            device.GattServicesChanged -= Device_GattServicesChanged;
+        }
+        ClearGattState();
+        device?.Dispose();
+        device = null;
+    }
+
+    private void ClearGattState()
+    {
         if (controlCharacteristic is not null)
         {
             controlCharacteristic.ValueChanged -= ControlCharacteristic_ValueChanged;
@@ -92,8 +181,6 @@ public sealed class BleGattControlClient : IDisposable
         controlCharacteristic = null;
         service?.Dispose();
         service = null;
-        device?.Dispose();
-        device = null;
     }
 
     public void Dispose()
@@ -105,5 +192,6 @@ public sealed class BleGattControlClient : IDisposable
 
         disposed = true;
         Disconnect();
+        connectionGate.Dispose();
     }
 }

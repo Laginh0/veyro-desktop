@@ -82,3 +82,43 @@ public sealed class RemoteFilesEventArgs(
 
     public IReadOnlyList<RemoteFileEntry> Entries { get; } = entries;
 }
+
+public enum FileTransferDirection
+{
+    Sending,
+    Receiving
+}
+
+public enum FileTransferStage
+{
+    Preparing,
+    AwaitingAcceptance,
+    Transferring,
+    Completed,
+    Failed,
+    Cancelled
+}
+
+public sealed class FileTransferProgressEventArgs(
+    string transferId,
+    string deviceId,
+    string deviceName,
+    string fileName,
+    FileTransferDirection direction,
+    FileTransferStage stage,
+    long transferredBytes,
+    long totalBytes,
+    TimeSpan elapsed,
+    Exception? error = null) : EventArgs
+{
+    public string TransferId { get; } = transferId;
+    public string DeviceId { get; } = deviceId;
+    public string DeviceName { get; } = deviceName;
+    public string FileName { get; } = fileName;
+    public FileTransferDirection Direction { get; } = direction;
+    public FileTransferStage Stage { get; } = stage;
+    public long TransferredBytes { get; } = transferredBytes;
+    public long TotalBytes { get; } = totalBytes;
+    public TimeSpan Elapsed { get; } = elapsed;
+    public Exception? Error { get; } = error;
+}

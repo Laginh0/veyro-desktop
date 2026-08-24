@@ -51,7 +51,7 @@ public static class ApplicationPayloadCipher
                 Convert.FromBase64String(recipient.IdentityPublicKeyBase64),
                 out _);
             using var remoteAgreementKey = ECDiffieHellman.Create(remoteSigningKey.ExportParameters(false));
-            var sharedSecret = ephemeralKey.DeriveKeyMaterial(remoteAgreementKey.PublicKey);
+            var sharedSecret = ephemeralKey.DeriveRawSecretAgreement(remoteAgreementKey.PublicKey);
             var encryptionKey = DeriveEncryptionKey(sharedSecret, originDeviceId, recipient.DeviceId);
             try
             {
@@ -125,7 +125,7 @@ public static class ApplicationPayloadCipher
         using var localAgreementKey = ECDiffieHellman.Create(localSigningKey.ExportParameters(true));
         using var ephemeralKey = ECDiffieHellman.Create();
         ephemeralKey.ImportSubjectPublicKeyInfo(encrypted.EphemeralPublicKeySpki.Span, out _);
-        var sharedSecret = localAgreementKey.DeriveKeyMaterial(ephemeralKey.PublicKey);
+        var sharedSecret = localAgreementKey.DeriveRawSecretAgreement(ephemeralKey.PublicKey);
         var encryptionKey = DeriveEncryptionKey(sharedSecret, originDeviceId, localDeviceId);
         try
         {

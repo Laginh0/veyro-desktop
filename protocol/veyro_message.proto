@@ -26,6 +26,7 @@ message VeyroMessage {
     PresentationEvent presentation_event = 21;
     RemoteFileEvent remote_file_event = 22;
     ClipboardSyncEvent clipboard_sync_event = 23;
+    GroupTopologyEvent group_topology_event = 25;
     FileTransferEvent file_transfer_event = 24;
   }
 }
@@ -260,6 +261,22 @@ message ClipboardSyncEvent {
   string source_device_id = 2;
   string text = 3;
   int64 event_timestamp = 4;
+}
+
+// Published by the authenticated Desktop coordinator so Android members can route
+// end-to-end encrypted application messages through the Desktop star.
+message GroupTopologyEvent {
+  uint64 epoch = 1;
+  string coordinator_device_id = 2;
+  repeated GroupTopologyMember members = 3;
+}
+
+message GroupTopologyMember {
+  string device_id = 1;
+  string display_name = 2;
+  bytes identity_public_key_spki = 3;
+  bool is_coordinator = 4;
+  bool is_available = 5;
 }
 
 message FileTransferEvent {
